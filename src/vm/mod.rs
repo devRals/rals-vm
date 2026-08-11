@@ -1,3 +1,5 @@
+mod execution;
+
 use crate::{
     cpu::{
         CentralProcessUnit, Decode,
@@ -42,8 +44,18 @@ impl<A: Architecture> VirtualMachine<A> {
     }
 
     pub fn execute(&mut self, instruction: Instruction<A>) {
+        use Instruction as I;
+
         match instruction {
-            _ => {}
+            I::NOP => self.execute_nop(),
+
+            I::ADD { dst, lhs, rhs } => self.execute_add(lhs, rhs, dst),
+            I::SUB { dst, lhs, rhs } => self.execute_sub(lhs, rhs, dst),
+
+            I::LDI { dst, src } => self.execute_ldi(dst, src),
+            I::MOV { dst, src } => self.execute_mov(dst, src),
+
+            I::HLT => self.execute_hlt(),
         }
     }
 
