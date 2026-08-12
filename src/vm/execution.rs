@@ -7,7 +7,7 @@ use crate::{
 };
 
 impl<A: Architecture> VirtualMachine<A> {
-    pub const fn execute_nop(&mut self) {
+    pub fn execute_nop(&mut self) {
         // What a cool instruction :3
     }
 
@@ -15,14 +15,20 @@ impl<A: Architecture> VirtualMachine<A> {
         let lhs = self.cpu.reg_file.general[lhs as usize];
         let rhs = self.cpu.reg_file.general[rhs as usize];
 
-        self.cpu.reg_file.general[dst as usize] = lhs + rhs;
+        let result = self.cpu.alu.add(lhs, rhs);
+
+        self.cpu.reg_file.general[dst as usize] = result.value;
+        self.cpu.flags = result.flags;
     }
 
     pub fn execute_sub(&mut self, lhs: Register, rhs: Register, dst: Register) {
         let lhs = self.cpu.reg_file.general[lhs as usize];
         let rhs = self.cpu.reg_file.general[rhs as usize];
 
-        self.cpu.reg_file.general[dst as usize] = lhs - rhs;
+        let result = self.cpu.alu.sub(lhs, rhs);
+
+        self.cpu.reg_file.general[dst as usize] = result.value;
+        self.cpu.flags = result.flags;
     }
 
     pub fn execute_ldi(&mut self, dst: Register, src: Immediate<A>) {

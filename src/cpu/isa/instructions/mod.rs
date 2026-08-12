@@ -36,7 +36,10 @@ impl Encode for Register {
 
 impl Decode for Register {
     fn decode(ins: &[u8]) -> Result<Self, DecodeError> {
-        let byte = *ins.first().ok_or(DecodeError::InvalidLength)?;
+        let byte = *ins.first().ok_or(DecodeError::InvalidLength {
+            expected: 1,
+            got: 0,
+        })?;
 
         Ok(match byte {
             0 => Register::R0,
@@ -55,35 +58,36 @@ impl Decode for Register {
             13 => Register::R13,
             14 => Register::R14,
             15 => Register::R15,
-            _ => return Err(DecodeError::UnknownRegister),
+            unknown_reg_id => return Err(DecodeError::UnknownRegister { id: unknown_reg_id }),
         })
     }
 }
 
+#[repr(u8)]
 pub enum Instruction<A: Architecture> {
-    NOP,
+    NOP = 0x00,
 
     ADD {
         dst: Register,
         lhs: Register,
         rhs: Register,
-    },
+    } = 0x01,
     SUB {
         dst: Register,
         lhs: Register,
         rhs: Register,
-    },
+    } = 0x02,
 
     LDI {
         dst: Register,
         src: Immediate<A>,
-    },
+    } = 0x05,
     MOV {
         dst: Register,
         src: Register,
-    },
+    } = 0x06,
 
-    HLT,
+    HLT = 0xFF,
 }
 
 impl<A: Architecture> Instruction<A> {
@@ -116,7 +120,7 @@ impl<A: Architecture> Encode for Instruction<A> {
             I::ADD { dst, lhs, rhs } | I::SUB { dst, lhs, rhs } => {
                 lhs.encode(&mut out[1..2]);
                 rhs.encode(&mut out[2..3]);
-                dst.encode(&mut out[3..]);
+                dst.encode(&mut out[3..4]);
             }
 
             I::LDI { dst, src } => {
@@ -140,7 +144,10 @@ impl<A: Architecture> Decode for Instruction<A> {
         Self: Sized,
     {
         if ins.len() != A::INSTRUCTION_SIZE {
-            return Err(DecodeError::InvalidLength);
+            return Err(DecodeError::InvalidLength {
+                expected: A::INSTRUCTION_SIZE,
+                got: ins.len(),
+            });
         }
 
         let opcode = ins[0];
@@ -177,7 +184,7 @@ impl<A: Architecture> Decode for Instruction<A> {
                 Instruction::MOV { dst, src }
             }
             0xFF => Instruction::HLT,
-            _ => return Err(DecodeError::UnknownRegister),
+            code => return Err(DecodeError::UnknownOpCode { code }),
         })
     }
 }

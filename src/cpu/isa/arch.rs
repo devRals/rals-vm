@@ -33,7 +33,11 @@ impl<const N: usize> InstructionStorage for [u8; N] {}
 
 #[macro_export]
 macro_rules! create_arch {
-    ($arch_name: ident {Word: $word: ty, InstructionSize: $instruction_size: expr, MemorySize: $memory_size: expr}) => {
+    ( $arch_name: ident {
+        Word: $word: ty,
+        InstructionSize: $instruction_size: expr,
+        MemorySize: $memory_size: expr
+    }) => {
         #[derive(Default, Clone, Copy)]
         pub struct $arch_name;
         impl Architecture for $arch_name {
@@ -65,11 +69,6 @@ create_arch!(Arch32 {
 });
 create_arch!(Arch64 {
     Word: u64,
-    InstructionSize: 16,
-    MemorySize: 4096
-});
-create_arch!(Arch128 {
-    Word: u128,
     InstructionSize: 16,
     MemorySize: 4096
 });

@@ -23,6 +23,7 @@ pub trait ImmediateValue:
     const ONE: Self;
     const SIGN_MASK: Self;
     const BITS: u32;
+    const BYTES: usize;
 
     fn overflowing_add(self, rhs: Self) -> (Self, bool);
     fn overflowing_sub(self, rhs: Self) -> (Self, bool);
@@ -39,6 +40,7 @@ macro_rules! impl_integer_value {
                 const ZERO: Self = 0;
                 const ONE: Self = 1;
                 const BITS: u32 = <$ty>::BITS;
+                const BYTES: usize = <$ty>::BITS as usize / 8;
                 const SIGN_MASK: Self =
                     1 << (<$ty>::BITS - 1);
 
@@ -65,9 +67,12 @@ macro_rules! impl_integer_value {
 
             impl Decode for $ty {
                 fn decode(ins: &[u8]) -> Result<Self, DecodeError> {
-                    let bytes: [u8; _] = ins
+                    let bytes: [u8; Self::BYTES] = ins[..Self::BYTES]
                         .try_into()
-                        .map_err(|_| DecodeError::InvalidLength)?;
+                        .map_err(|_| DecodeError::InvalidLength {
+                            expected: Self::BYTES,
+                            got: ins.len(),
+                        })?;
 
                     Ok(Self::from_le_bytes(bytes))
                 }

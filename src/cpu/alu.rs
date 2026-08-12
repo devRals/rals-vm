@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::cpu::{
-    isa::arch::{Arch8, Arch16, Arch32, Arch64, Arch128, Architecture},
+    isa::arch::{Arch8, Arch16, Arch32, Arch64, Architecture},
     isa::value::{ImmediateValue, shl_carry, shr_carry},
 };
 
@@ -28,7 +28,6 @@ pub type Alu8 = ArithmeticLogicUnit<Arch8>;
 pub type Alu16 = ArithmeticLogicUnit<Arch16>;
 pub type Alu32 = ArithmeticLogicUnit<Arch32>;
 pub type Alu64 = ArithmeticLogicUnit<Arch64>;
-pub type Alu128 = ArithmeticLogicUnit<Arch128>;
 
 #[derive(Clone, Copy)]
 pub struct Flags {

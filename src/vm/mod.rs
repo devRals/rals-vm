@@ -2,10 +2,10 @@ mod execution;
 
 use crate::{
     cpu::{
-        CentralProcessUnit, Decode,
+        CentralProcessUnit, Decode, DecodeError,
         isa::{
             arch::{Arch64, Architecture, AsBytes},
-            instructions::{Instruction, RawInstruction},
+            instructions::Instruction,
         },
     },
     ram::RandomAccessMemory,
@@ -24,23 +24,46 @@ impl<A: Architecture> VirtualMachine<A> {
         }
     }
 
-    pub fn load_instructions(&mut self, ins: RawInstruction<A>) {
-        self.mem
-            .data
-            .as_bytes_mut()
-            .copy_from_slice(ins.data.as_bytes());
+    /// WARNING! Completely changes the from top to bottom with the given bytes and fills the empty
+    /// spaces with 0's'
+    /// Consider using [`Self::load_instructions`] if you don't know what you're doing
+    pub fn set_mem<'a>(&'a mut self, bytes: impl Into<&'a [u8]>) {
+        let bytes: &[u8] = bytes.into();
+        let mem = self.mem.data.as_bytes_mut();
+
+        if bytes.len() > mem.len() {
+            panic!("bytes len passes the mem capacity")
+        }
+
+        mem.fill(0);
+        for (src, dst) in bytes.iter().zip(mem) {
+            *dst = *src;
+        }
+    }
+
+    pub fn load_instructions<I>(&mut self, instructions: I)
+    where
+        I: IntoIterator<Item = A::Instruction>,
+    {
+        let mem = self.mem.data.as_bytes_mut();
+        for (i, ins) in instructions.into_iter().enumerate() {
+            let chunk = &mut mem[i * A::INSTRUCTION_SIZE..(i + 1) * A::INSTRUCTION_SIZE];
+            chunk.copy_from_slice(ins.as_bytes());
+        }
     }
 
     pub fn fetch(&self) -> &[u8] {
+        let pc = &self.cpu.reg_file.pc;
+
+        let start = pc.get() as usize;
+        let end = start + A::INSTRUCTION_SIZE;
+
         let bytes = self.mem.data.as_bytes();
-        &bytes[self.cpu.reg_file.pc.get() as usize..A::INSTRUCTION_SIZE as usize]
+        &bytes[start..end]
     }
 
-    pub fn decode(&self, raw_ins: &[u8]) -> Instruction<A> {
-        match Instruction::decode(raw_ins) {
-            Ok(ins) => ins,
-            Err(_) => self.fail("Failed to decode instruction"),
-        }
+    pub fn decode(&self, raw_ins: &[u8]) -> Result<Instruction<A>, DecodeError> {
+        Instruction::decode(raw_ins)
     }
 
     pub fn execute(&mut self, instruction: Instruction<A>) {
@@ -59,13 +82,14 @@ impl<A: Architecture> VirtualMachine<A> {
         }
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> Result<(), DecodeError> {
         let raw_instruction = self.fetch();
 
-        let instruction = self.decode(raw_instruction);
+        let instruction = self.decode(raw_instruction)?;
         self.execute(instruction);
 
         self.cpu.reg_file.pc.advance();
+        Ok(())
     }
 
     pub fn fail(&self, msg: &str) -> ! {
@@ -73,26 +97,6 @@ impl<A: Architecture> VirtualMachine<A> {
     }
 }
 
-pub struct Program<'ins, A: Architecture> {
-    instructions: &'ins [A::Instruction],
-    index: usize,
-}
+pub trait VmError {}
 
-impl<'a, A: Architecture> Program<'a, A> {
-    pub const fn new(instructions: &'a [A::Instruction]) -> Self {
-        Program {
-            instructions,
-            index: 0,
-        }
-    }
-}
-
-impl<'a, A: Architecture> Iterator for Program<'a, A> {
-    type Item = &'a A::Instruction;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let ins = self.instructions.get(self.index);
-        self.index += 1;
-        ins
-    }
-}
+impl VmError for DecodeError {}

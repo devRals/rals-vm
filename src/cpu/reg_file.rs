@@ -8,8 +8,8 @@ use super::{isa::arch::Architecture, isa::value::ImmediateValue};
 /// PC increases which means we skipped to the next instruction in a program
 #[derive(Default)]
 pub struct ProgramCounter<A: Architecture> {
+    pub stopped: bool,
     counter: u64,
-    stopped: bool,
     _arch: PhantomData<A>,
 }
 
@@ -38,7 +38,7 @@ impl<A: Architecture> ProgramCounter<A> {
     /// JMR (Jump Relative) skips `amount` amount of instructions and continues from at that point
     pub fn jmr(&mut self, amount: u64) {
         if !self.stopped {
-            self.counter += amount;
+            self.counter += amount * A::INSTRUCTION_SIZE as u64;
         }
     }
 
@@ -48,6 +48,10 @@ impl<A: Architecture> ProgramCounter<A> {
 
     pub const fn get(&self) -> u64 {
         self.counter
+    }
+
+    pub const fn peek(&self) -> u64 {
+        self.counter + A::INSTRUCTION_SIZE as u64
     }
 }
 
