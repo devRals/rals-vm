@@ -1,5 +1,4 @@
-// #![no_std]
-#![no_main]
+#![no_std]
 
 pub mod asm;
 pub mod cpu;
