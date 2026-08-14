@@ -1,0 +1,105 @@
+use crate::{
+    ast::{AstHeaderSection, AstProgram, AstTextSection},
+    errors::{ParseError, ParserErrorKind},
+    symbol_table::SymbolTable,
+    tokenizer::Tokenizer,
+    tokens::{Token, TokenType},
+};
+
+pub type ParserResult<T> = Result<T, ParseError>;
+
+pub struct Parser<'src> {
+    tokenizer: Tokenizer<'src>,
+    current: Token,
+    peek: Token,
+    symbol_table: &'src mut SymbolTable,
+}
+
+impl<'src> Parser<'src> {
+    pub fn new(source_str: &'src str, symbol_table: &'src mut SymbolTable) -> Self {
+        let mut parser = Parser {
+            tokenizer: Tokenizer::new(source_str),
+            symbol_table,
+            peek: Token::DUMMY_TOKEN,
+            current: Token::DUMMY_TOKEN,
+        };
+
+        parser.next_token();
+        parser.next_token();
+
+        parser
+    }
+}
+
+impl<'a> Parser<'a> {
+    pub fn next_token(&mut self) {
+        self.current = self.peek;
+        self.peek = self.tokenizer.next_token();
+    }
+
+    pub fn expect_current_token_to_be(&mut self, ty: TokenType) -> ParserResult<()> {
+        if self.current.ty != ty {
+            return Err(ParseError::new(
+                ParserErrorKind::SyntaxError {
+                    expected: ty,
+                    got: self.current.ty,
+                },
+                self.current.pos,
+            ));
+        }
+
+        self.next_token();
+
+        Ok(())
+    }
+
+    pub fn expect_next_token_to_be(&mut self, ty: TokenType) -> ParserResult<()> {
+        if self.peek.ty != ty {
+            return Err(ParseError::new(
+                ParserErrorKind::SyntaxError {
+                    expected: ty,
+                    got: self.peek.ty,
+                },
+                self.peek.pos,
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+impl Parser<'_> {
+    pub fn parse_program(&mut self) -> ParserResult<AstProgram> {
+        let mut sections = (None::<AstTextSection>, None::<AstHeaderSection>);
+
+        while !matches!(self.current.ty, TokenType::EOF) {
+            self.expect_current_token_to_be(TokenType::Section)?;
+            self.expect_current_token_to_be(TokenType::Dot)?;
+
+            match self.current.literal(self.tokenizer.source_str) {
+                "text" => sections.0 = Some(self.parse_text_section()?),
+                "header" => sections.1 = Some(self.parse_header_section()?),
+                _ => {
+                    return Err(ParseError::new(
+                        ParserErrorKind::NotAValidSection {
+                            span: self.current.span,
+                        },
+                        self.current.pos,
+                    ));
+                }
+            }
+        }
+
+        Ok(AstProgram {
+            text_section: sections.0,
+            header_section: sections.1,
+        })
+    }
+
+    fn parse_text_section(&mut self) -> ParserResult<AstTextSection> {
+        todo!()
+    }
+    fn parse_header_section(&mut self) -> ParserResult<AstHeaderSection> {
+        todo!()
+    }
+}

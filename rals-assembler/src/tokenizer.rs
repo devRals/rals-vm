@@ -1,0 +1,128 @@
+use core::{iter::Peekable, str::CharIndices};
+
+use super::tokens::*;
+
+pub struct Tokenizer<'src> {
+    pub(crate) source_str: &'src str,
+    source: Peekable<CharIndices<'src>>,
+    current: Option<(usize, char)>,
+    peek: Option<(usize, char)>,
+    pub(crate) pos: SourcePos,
+    pub(crate) index: usize,
+}
+
+impl<'src> Tokenizer<'src> {
+    pub fn new(source_str: &'src str) -> Self {
+        let mut source = source_str.char_indices().peekable();
+
+        Self {
+            current: source.next(),
+            peek: source.peek().copied(),
+            source_str,
+            source,
+            pos: SourcePos { line: 0, column: 0 },
+            index: 0,
+        }
+    }
+
+    fn read_char(&mut self) {
+        self.current = self.source.next();
+        self.peek = self.source.peek().copied();
+
+        if let Some((_, ch)) = self.current {
+            if ch == '\n' {
+                self.pos.line += 1;
+                self.pos.column = 0;
+            }
+            self.index += ch.len_utf8();
+        } else {
+            self.pos.column += 1;
+        }
+    }
+
+    fn skip_whitespace(&mut self) {
+        while let Some((_, ch)) = self.current
+            && ch.is_ascii_whitespace()
+        {
+            self.read_char();
+        }
+    }
+
+    pub fn next_token(&mut self) -> Token {
+        self.skip_whitespace();
+
+        match self.current {
+            Some((pos, ch)) if ch.is_ascii_alphabetic() => self.ident_token(pos),
+            Some((pos, ch)) if ch.is_ascii_digit() => self.constant_token(pos),
+            Some(_) => self.parse_token(),
+
+            None => Token::EOF,
+        }
+    }
+
+    fn parse_token(&mut self) -> Token {
+        use TokenType::*;
+
+        match self.current {
+            Some((_, ch)) => Token::new(
+                match ch {
+                    ':' => Colon,
+                    ',' => Comma,
+                    '.' => Dot,
+                    _ => Illegal,
+                },
+                self.pos,
+                Span {
+                    start: self.index,
+                    len: ch.len_utf8(),
+                },
+            ),
+            None => Token::EOF,
+        }
+    }
+
+    fn ident_token(&mut self, start_pos: usize) -> Token {
+        let mut end = start_pos;
+        let pos = self.pos;
+
+        while let Some((_, ch)) = self.current
+            && ch.is_ascii_alphanumeric()
+        {
+            end += 1;
+            self.read_char();
+        }
+
+        Token::keyword(&self.source_str[start_pos..end], pos, start_pos)
+    }
+
+    fn constant_token(&mut self, start_pos: usize) -> Token {
+        let mut end = start_pos;
+        let pos = self.pos;
+        let start = start_pos;
+
+        while let Some((_, ch)) = self.current
+            /* for parsing binary, octal and hexadecimal constants with prefixes "0x", "0o" and "0b" */
+            && (ch.is_digit(16) || ch == 'o' || ch == 'x' || ch == 'b' || ch == '_')
+        {
+            end += 1;
+            self.read_char();
+        }
+
+        let literal = &self.source_str[start_pos..end];
+        let len = literal.len();
+
+        Token::new(TokenType::Constant, pos, Span { start, len })
+    }
+}
+
+impl<'a> Iterator for Tokenizer<'a> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.next_token();
+        match token.ty {
+            TokenType::EOF => None,
+            _ => Some(token),
+        }
+    }
+}
