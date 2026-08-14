@@ -65,11 +65,14 @@ impl<'src> Tokenizer<'src> {
 
         match self.current {
             Some((_, ch)) => Token::new(
-                match ch {
-                    ':' => Colon,
-                    ',' => Comma,
-                    '.' => Dot,
-                    _ => Illegal,
+                {
+                    self.read_char();
+                    match ch {
+                        ':' => Colon,
+                        ',' => Comma,
+                        '.' => Dot,
+                        _ => Illegal,
+                    }
                 },
                 self.pos,
                 Span {

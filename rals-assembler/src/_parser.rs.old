@@ -1,8 +1,8 @@
 use crate::{
-    ast::{AstHeaderSection, AstProgram, AstTextSection},
+    _tokenizer::Tokenizer,
+    ast::{AstHeaderSection, AstTextSection, Program},
     errors::{ParseError, ParserErrorKind},
     symbol_table::SymbolTable,
-    tokenizer::Tokenizer,
     tokens::{Token, TokenType},
 };
 
@@ -97,8 +97,13 @@ impl Parser<'_> {
     }
 
     fn parse_text_section(&mut self) -> ParserResult<AstTextSection> {
-        todo!()
+        self.expect_next_token_to_be(TokenType::Colon)?;
+        self.next_token();
+        self.next_token();
+
+        while !matches!(self.current.ty, TokenType::Section | TokenType::EOF) {}
     }
+
     fn parse_header_section(&mut self) -> ParserResult<AstHeaderSection> {
         todo!()
     }

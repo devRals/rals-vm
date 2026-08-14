@@ -5,3 +5,8 @@ edition = "2024"
 
 [dependencies]
 rals-vm-isa = { path = "../rals-vm-isa" }
+lalrpop-util = { version = "0.23.1",features = ["lexer"] }
+logos = "0.14"
+
+[build-dependencies]
+lalrpop = "0.23.1"

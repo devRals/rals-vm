@@ -1,30 +1,22 @@
 use crate::{
-    ast::AstProgram,
-    parser::{Parser, ParserResult},
-    symbol_table::SymbolTable,
+    lexer::LexerAdapter,
+    // _symbol_table::SymbolTable,
 };
 
+use lalrpop_util::lalrpop_mod;
+
 pub mod ast;
-pub mod errors;
-pub mod parser;
-pub mod symbol_table;
-pub mod tokenizer;
+// pub mod _errors;
+// pub mod _parser;
+// pub mod _symbol_table;
+pub mod lexer;
 pub mod tokens;
 
-pub struct Assembler<'src> {
-    symbol_table: SymbolTable,
-    source_str: &'src str,
-}
+lalrpop_mod!(pub grammar);
 
-impl<'src> Assembler<'src> {
-    pub fn new(source_str: &'src str) -> Self {
-        Assembler {
-            symbol_table: SymbolTable::new(),
-            source_str,
-        }
-    }
-
-    pub fn parse(&mut self) -> ParserResult<AstProgram> {
-        Parser::new(self.source_str, &mut self.symbol_table).parse_program()
-    }
+pub fn parse(input: &str) -> Result<ast::Program, String> {
+    let lexer = LexerAdapter::new(input);
+    grammar::ProgramParser::new()
+        .parse(lexer)
+        .map_err(|e| format!("{e:?}"))
 }

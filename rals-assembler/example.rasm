@@ -1,0 +1,11 @@
+section .header
+    arch: 64
+
+section .text ; Cool comment
+_start:
+    ldi r0, 0xff
+    LDI R1, 0o6
+    CMp r1, R0
+    JZ _end
+_end:
+    HLT

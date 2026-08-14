@@ -1,0 +1,55 @@
+use crate::ast::*;
+use crate::lexer::{Token, LexError};
+
+grammar;
+
+extern {
+    type Location = usize;
+    type Error = LexError;
+
+    enum Token {
+        "section" => Token::Section,
+        "dotident" => Token::DotIdent(<String>),
+        ":" => Token::Colon,
+        "," => Token::Comma,
+        "reg" => Token::Register(<u8>),
+        "imm" => Token::Immediate(<i64>),
+        "ident" => Token::Ident(<String>),
+        "\n" => Token::Newline,
+    }
+}
+
+pub Program: Program = {
+    "\n"? <sections:Section*> => Program { sections }
+};
+
+Section: Section = {
+    "section" <name:"dotident"> "\n" <items:Item*> => Section { name, items }
+};
+
+Item: Item = {
+    <name:"ident"> ":" <value:"imm"?> "\n" => match value {
+        Some(v) => Item::Directive { key: name, value: v },
+        None => Item::Label(name),
+    },
+    <i:Instruction> "\n" => Item::Instruction(i),
+};
+
+Instruction: Instruction = {
+    <m:"ident"> <ops:Comma<Operand>> => Instruction { mnemonic: m, operands: ops },
+};
+
+Operand: Operand = {
+    "reg" => Operand::Reg(<>),
+    "imm" => Operand::Imm(<>),
+    "ident" => Operand::Label(<>),
+};
+
+// Standard lalrpop idiom for comma-separated lists — no left-recursion,
+// no ambiguity with the empty case.
+Comma<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => { v.push(e); v }
+    }
+};

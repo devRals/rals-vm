@@ -1,8 +1,30 @@
-pub struct AstProgram {
-    pub(crate) text_section: Option<AstTextSection>,
-    pub(crate) header_section: Option<AstHeaderSection>,
+#[derive(Debug)]
+pub struct Program {
+    pub sections: Vec<Section>,
 }
 
-pub struct AstTextSection {}
+#[derive(Debug)]
+pub struct Section {
+    pub name: String,
+    pub items: Vec<Item>,
+}
 
-pub struct AstHeaderSection {}
+#[derive(Debug)]
+pub enum Item {
+    Label(String),
+    Directive { key: String, value: i64 },
+    Instruction(Instruction),
+}
+
+#[derive(Debug)]
+pub struct Instruction {
+    pub mnemonic: String,
+    pub operands: Vec<Operand>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Operand {
+    Reg(u8),
+    Imm(i64),
+    Label(String),
+}

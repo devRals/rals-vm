@@ -1,0 +1,73 @@
+use rals_assembler::{_tokenizer::Tokenizer, tokens::TokenType};
+
+#[test]
+fn test_tokenizer() {
+    use TokenType::*;
+
+    let items = r#"
+        . , :
+    "#;
+    let item_tokens = [Dot, Comma, Colon];
+    let keywords = r#"
+        ldi LDI
+        mov MOV
+
+        add ADD
+        sub SUB
+        or OR
+        xor XOR
+        inv INV
+        shl SHL
+        shr SHR
+
+        cmp CMP
+        jmp JMP
+        jm JM
+        jmr JMR
+
+        jz JZ
+        js JS
+        jo JO
+        jc JC
+
+        call CALL
+        cll CLL
+
+        ret RET
+        section SECTION
+    "#;
+    let keyword_tokens = [
+        LDI, MOV, ADD, SUB, OR, XOR, INV, SHL, SHR, CMP, //
+        JMP, JMP, JMR, JZ, JS, JO, JC, CALL, CALL, RET, Section, //
+    ];
+    let constants = r#"
+        0xff11
+        12345
+        0b01101
+        0o755
+    "#;
+    let constant_literals = [
+        "0xff11", "12345", "0b01101", "0o755", //
+    ];
+
+    let tokenizer = Tokenizer::new(items);
+    let tokens: Vec<_> = tokenizer.collect();
+    for (i, (expected, got)) in item_tokens.into_iter().zip(tokens).enumerate() {
+        assert_eq!(expected, got.ty, "{i}. ");
+    }
+
+    let tokenizer = Tokenizer::new(keywords);
+    let tokens: Vec<_> = tokenizer.collect();
+    let mut i = 0;
+    for expected in keyword_tokens.into_iter() {
+        assert_eq!(expected, tokens[i].ty, "{i}. ");
+        assert_eq!(expected, tokens[i + 1].ty, "{}. ", i + 1);
+        i += 2;
+    }
+
+    let tokenizer = Tokenizer::new(constants);
+    let tokens: Vec<_> = tokenizer.collect();
+    for (i, (expected, got)) in constant_literals.into_iter().zip(tokens).enumerate() {
+        assert_eq!(expected, got.literal(constants), "{i}. ")
+    }
+}
