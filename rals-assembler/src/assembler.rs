@@ -1,5 +1,6 @@
 use std::{collections::HashMap, error::Error, fmt::Display, marker::PhantomData};
 
+use rals_vm_isa::Encode;
 use rals_vm_isa::arch::{Arch32, Architecture};
 
 use crate::ast::{AstInstruction, AstItem, AstProgram, Directive, HeaderSection, Instruction};
@@ -36,6 +37,10 @@ impl<A: Architecture> Assembler<A> {
     }
 
     fn resolve_data_section(&mut self) {}
+
+    fn write_header(out: &mut Vec<u8>) -> Result<(), Pass2Error> {
+        Ok(())
+    }
 
     pub fn resolve_header(program: &AstProgram) -> Option<Result<HeaderSection, Pass1Error>> {
         let header_section = program
@@ -125,6 +130,9 @@ impl<A: Architecture> Assembler<A> {
             "jrnc" => self.jrnc(ins),
             "jrns" => self.jrns(ins),
 
+            "push" => self.push(ins),
+            "pop" => self.pop(ins),
+
             "hlt" => self.hlt(ins),
 
             o => return Err(Pass1Error::UnknownOpCode(o.to_string())),
@@ -160,6 +168,21 @@ impl<A: Architecture> Assembler<A> {
         }
 
         Ok(resolved)
+    }
+
+    pub fn pass2(&mut self, program: ResolvedProgram) -> Result<Vec<u8>, Pass2Error> {
+        let mut out = Vec::new();
+
+        Assembler::<A>::write_header(&mut out)?;
+
+        for ins in program.instructions {
+            let resolved = ins.resolve(&self.symbol_table)?;
+            let mut ins_buf = vec![0u8; A::INSTRUCTION_SIZE];
+            Encode::<A>::encode(resolved, &mut ins_buf);
+            out.extend(ins_buf);
+        }
+
+        Ok(out)
     }
 }
 
@@ -198,6 +221,21 @@ impl Display for Pass1Error {
                 f,
                 "Operation Code `{opcode}` expected `{expected}` amount of operands, got `{got}`"
             ),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Pass2Error {
+    Undefined(String),
+}
+
+impl Error for Pass2Error {}
+impl Display for Pass2Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Pass2Error::*;
+        match self {
+            Undefined(ident) => write!(f, "`{ident}` is not defined"),
         }
     }
 }

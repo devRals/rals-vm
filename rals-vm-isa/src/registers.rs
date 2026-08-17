@@ -1,4 +1,4 @@
-use crate::{Decode, Encode, Operand};
+use crate::Decode;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -21,14 +21,6 @@ pub enum Register {
     R15,
 
     UnknownRegister = 0xFF,
-}
-
-impl Operand for Register {}
-
-impl Encode for Register {
-    fn encode(self, out: &mut [u8]) {
-        out[0] = self as u8;
-    }
 }
 
 impl Decode for Register {

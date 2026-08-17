@@ -56,65 +56,65 @@ pub enum Instruction {
     },
 
     SHL {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
     SHR {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
     SAR {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
 
     SHLI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
     SHRI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
     SARI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
 
     OR {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
     XOR {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
     AND {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         rhs: u8,
     },
 
     ORI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
     XORI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
     ANDI {
-        reg: u8,
+        dst: u8,
         lhs: u8,
         imm: i64,
     },
@@ -175,30 +175,34 @@ pub enum Instruction {
         target: AstJumpTarget,
     },
 
+    JMP {
+        addr: usize,
+    },
+
     JO {
-        addr: u64,
+        addr: usize,
     },
     JC {
-        addr: u64,
+        addr: usize,
     },
     JZ {
-        addr: u64,
+        addr: usize,
     },
     JS {
-        addr: u64,
+        addr: usize,
     },
 
     JNO {
-        addr: u64,
+        addr: usize,
     },
     JNC {
-        addr: u64,
+        addr: usize,
     },
     JNZ {
-        addr: u64,
+        addr: usize,
     },
     JNS {
-        addr: u64,
+        addr: usize,
     },
 
     JRO {
@@ -238,13 +242,19 @@ pub enum Instruction {
         target_offset: i64,
     },
 
+    PUSH {
+        reg: u8,
+    },
+    POP {
+        reg: u8,
+    },
+
     HLT,
 }
 
 pub enum AstJumpTarget {
     Label(String),
-    Addr(u64),
-    Imm(i64),
+    Addr(usize),
 }
 
 #[derive(Clone)]

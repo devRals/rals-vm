@@ -69,6 +69,54 @@ pub enum Instruction<A: Architecture> {
         rhs: Register,
     } = 0x08,
 
+    ADDI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x09,
+    SUBI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0a,
+
+    ORI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0b,
+    XORI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0c,
+    ANDI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0d,
+
+    SHLI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0e,
+    SHRI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x0f,
+    SARI {
+        dst: Register,
+        lhs: Register,
+        imm: Immediate<A>,
+    } = 0x10,
+
+    CMP {
+        r1: Register,
+        r2: Register,
+    } = 0x20,
+
     LDI {
         dst: Register,
         src: Immediate<A>,
@@ -78,6 +126,26 @@ pub enum Instruction<A: Architecture> {
         src: Register,
     } = 0x71,
 
+    INC {
+        reg: Register,
+    } = 0x72,
+    DEC {
+        reg: Register,
+    } = 0x73,
+
+    JO {
+        addr: usize,
+    } = 0x74,
+    JC {
+        addr: usize,
+    } = 0x75,
+
+    JS {
+        addr: usize,
+    } = 0x76,
+    JZ {
+        addr: usize,
+    } = 0x77,
     /// Since a real computer can't understand what a Result is we can't directly use it.
     /// Instead we can define an instruction that should not be used in production.
     UnknownInstruction = 0xFE,
@@ -85,31 +153,6 @@ pub enum Instruction<A: Architecture> {
 }
 
 impl<A: Architecture> Instruction<A> {
-    pub fn opcode(&self) -> u8 {
-        use Instruction as I;
-
-        match self {
-            I::NOP => 0x00,
-
-            I::ADD { .. } => 0x01,
-            I::SUB { .. } => 0x02,
-
-            I::OR { .. } => 0x03,
-            I::XOR { .. } => 0x04,
-            I::AND { .. } => 0x05,
-
-            I::SHL { .. } => 0x06,
-            I::SHR { .. } => 0x07,
-            I::SAR { .. } => 0x08,
-
-            I::LDI { .. } => 0x70,
-            I::MOV { .. } => 0x71,
-
-            I::UnknownInstruction => 0xFE,
-            I::HLT => 0xFF,
-        }
-    }
-
     fn decode_from_opocode(opcode: u8, dst: Register, lhs: Register, rhs: Register) -> Self {
         use Instruction as I;
         match opcode {

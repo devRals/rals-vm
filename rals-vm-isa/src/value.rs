@@ -1,11 +1,11 @@
 use core::cmp::*;
 use core::ops::*;
 
-use crate::{Decode, Encode, Operand};
+use crate::Decode;
 
 pub trait ImmediateValue:
     Copy
-    + Operand
+    + Decode
     + Add<Output = Self>
     + Sub<Output = Self>
     + BitAnd<Output = Self>
@@ -31,6 +31,7 @@ pub trait ImmediateValue:
     fn wrapping_sub(self, rhs: Self) -> Self;
 
     fn to_bytes(&self) -> Self::Bytes;
+    fn try_from_i64(value: i64) -> Option<Self>; // For assembly side interplation
 }
 
 macro_rules! impl_integer_value {
@@ -64,13 +65,9 @@ macro_rules! impl_integer_value {
                 fn to_bytes(&self) -> Self::Bytes {
                     self.to_le_bytes()
                 }
-            }
 
-            impl Operand for $ty {}
-
-            impl Encode for $ty {
-                fn encode(self, out: &mut [u8]) {
-                    out.copy_from_slice(&self.to_le_bytes());
+                fn try_from_i64(value: i64) -> Option<Self> {
+                    Self::try_from(value).ok()
                 }
             }
 
