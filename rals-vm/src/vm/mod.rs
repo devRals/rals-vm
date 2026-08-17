@@ -1,13 +1,11 @@
 mod execution;
 
-use crate::{
-    cpu::{CentralProcessUnit, reg_file::Instruction},
-    ram::RandomAccessMemory,
-};
+use crate::{cpu::CentralProcessUnit, ram::RandomAccessMemory};
 
 use rals_vm_isa::{
-    Decode, DecodeError,
+    Decode,
     arch::{Arch64, Architecture, AsBytes},
+    instructions::Instruction,
 };
 
 pub struct VirtualMachine<A: Architecture = Arch64> {
@@ -23,7 +21,7 @@ impl<A: Architecture> VirtualMachine<A> {
         }
     }
 
-    /// WARNING! Completely changes the from top to bottom with the given bytes and fills the empty
+    /// WARNING! Completely changes the vm's memory from top to bottom with the given bytes and fills the empty
     /// spaces with 0's'
     /// Consider using [`Self::load_instructions`] if you don't know what you're doing
     pub fn set_mem<'a>(&'a mut self, bytes: impl Into<&'a [u8]>) {
@@ -61,7 +59,7 @@ impl<A: Architecture> VirtualMachine<A> {
         &bytes[start..end]
     }
 
-    pub fn decode(&self, raw_ins: &[u8]) -> Result<Instruction<A>, DecodeError> {
+    pub fn decode(&self, raw_ins: &[u8]) -> Instruction<A> {
         Instruction::decode(raw_ins)
     }
 
@@ -78,32 +76,26 @@ impl<A: Architecture> VirtualMachine<A> {
             I::MOV { dst, src } => self.execute_mov(dst, src),
 
             I::HLT => self.execute_hlt(),
+            _ => todo!("this instruction not implemented yet"),
         }
     }
 
-    pub fn step(&mut self) -> Result<(), DecodeError> {
+    pub fn step(&mut self) {
         let raw_instruction = self.fetch();
 
-        let instruction = self.decode(raw_instruction)?;
+        let instruction = self.decode(raw_instruction);
         self.execute(instruction);
 
         self.cpu.reg_file.pc.advance();
-        Ok(())
     }
 
-    pub fn run(&mut self) -> Result<(), DecodeError> {
+    pub fn run(&mut self) {
         while !self.cpu.reg_file.pc.stopped {
-            self.step()?;
+            self.step();
         }
-
-        Ok(())
     }
 
     pub fn fail(&self, msg: &str) -> ! {
         panic!("Segmentation fault noooo :c\n    {}", msg)
     }
 }
-
-pub trait VmError {}
-
-impl VmError for DecodeError {}

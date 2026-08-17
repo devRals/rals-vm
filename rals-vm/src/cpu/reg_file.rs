@@ -1,11 +1,6 @@
 use core::marker::PhantomData;
 
-use rals_vm_isa::{
-    Decode, DecodeError, Encode,
-    arch::Architecture,
-    instructions::{Immediate, Operand},
-    value::ImmediateValue,
-};
+use rals_vm_isa::{arch::Architecture, registers::Register, value::ImmediateValue};
 
 /// PC (Program Counter not Personal Computer) is a physical&hardware CPU Component that
 /// tells us which instruction were currently executing. Every time the
@@ -14,7 +9,7 @@ use rals_vm_isa::{
 #[derive(Default)]
 pub struct ProgramCounter<A: Architecture> {
     pub stopped: bool,
-    counter: u64,
+    counter: usize,
     _arch: PhantomData<A>,
 }
 
@@ -29,21 +24,24 @@ impl<A: Architecture> ProgramCounter<A> {
 
     pub fn advance(&mut self) {
         if !self.stopped {
-            self.counter += A::INSTRUCTION_SIZE as u64;
+            self.counter += A::INSTRUCTION_SIZE;
         }
     }
 
     /// JMP (Jump) goes to the given instruction address and continues from at that point
-    pub fn jmp(&mut self, addr: u64) {
+    pub fn jmp(&mut self, addr: usize) {
         if !self.stopped {
             self.counter = addr;
         }
     }
 
     /// JMR (Jump Relative) skips `amount` amount of instructions and continues from at that point
-    pub fn jmr(&mut self, amount: u64) {
+    pub fn jmr(&mut self, amount: isize) {
         if !self.stopped {
-            self.counter += amount * A::INSTRUCTION_SIZE as u64;
+            let byte_offset = (A::INSTRUCTION_SIZE as isize) * amount;
+            // reinterpret the signed byte offset as the unsigned wrapping delta
+            let next = self.counter.wrapping_add(byte_offset as usize);
+            self.counter = next;
         }
     }
 
@@ -51,34 +49,9 @@ impl<A: Architecture> ProgramCounter<A> {
         self.stopped = true;
     }
 
-    pub const fn get(&self) -> u64 {
+    pub const fn get(&self) -> usize {
         self.counter
     }
-
-    pub const fn peek(&self) -> u64 {
-        self.counter + A::INSTRUCTION_SIZE as u64
-    }
-}
-
-#[repr(u8)]
-#[derive(Clone, Copy)]
-pub enum Register {
-    R0,
-    R1,
-    R2,
-    R3,
-    R4,
-    R5,
-    R6,
-    R7,
-    R8,
-    R9,
-    R10,
-    R11,
-    R12,
-    R13,
-    R14,
-    R15,
 }
 
 /// RegisterFile is the place where all the CPU registers take place
@@ -113,169 +86,11 @@ impl<A: Architecture> RegisterFile<A> {
 
     /// INC (Increase) increases the given register value
     pub fn inc(&mut self, dst: Register) {
-        self.general[dst as usize] = self.general[dst as usize] + A::Word::ONE
+        self.general[dst as usize] = self.general[dst as usize].wrapping_add(A::Word::ONE);
     }
-}
 
-impl Operand for Register {}
-
-impl Encode for Register {
-    fn encode(self, out: &mut [u8]) {
-        out[0] = self as u8;
-    }
-}
-
-impl Decode for Register {
-    fn decode(ins: &[u8]) -> Result<Self, DecodeError> {
-        let byte = *ins.first().ok_or(DecodeError::InvalidLength {
-            expected: 1,
-            got: 0,
-        })?;
-
-        Ok(match byte {
-            0 => Register::R0,
-            1 => Register::R1,
-            2 => Register::R2,
-            3 => Register::R3,
-            4 => Register::R4,
-            5 => Register::R5,
-            6 => Register::R6,
-            7 => Register::R7,
-            8 => Register::R8,
-            9 => Register::R9,
-            10 => Register::R10,
-            11 => Register::R11,
-            12 => Register::R12,
-            13 => Register::R13,
-            14 => Register::R14,
-            15 => Register::R15,
-            unknown_reg_id => return Err(DecodeError::UnknownRegister { id: unknown_reg_id }),
-        })
-    }
-}
-
-#[repr(u8)]
-pub enum Instruction<A: Architecture> {
-    NOP = 0x00,
-
-    ADD {
-        dst: Register,
-        lhs: Register,
-        rhs: Register,
-    } = 0x01,
-    SUB {
-        dst: Register,
-        lhs: Register,
-        rhs: Register,
-    } = 0x02,
-
-    LDI {
-        dst: Register,
-        src: Immediate<A>,
-    } = 0x05,
-    MOV {
-        dst: Register,
-        src: Register,
-    } = 0x06,
-
-    HLT = 0xFF,
-}
-
-impl<A: Architecture> Instruction<A> {
-    pub fn opcode(&self) -> u8 {
-        use Instruction as I;
-
-        match self {
-            I::NOP => 0x00,
-
-            I::ADD { .. } => 0x01,
-            I::SUB { .. } => 0x02,
-
-            I::LDI { .. } => 0x05,
-            I::MOV { .. } => 0x06,
-
-            I::HLT => 0xFF,
-        }
-    }
-}
-
-impl<A: Architecture> Encode for Instruction<A> {
-    fn encode(self, out: &mut [u8]) {
-        use Instruction as I;
-
-        out[0] = self.opcode();
-
-        match self {
-            I::NOP => {}
-
-            I::ADD { dst, lhs, rhs } | I::SUB { dst, lhs, rhs } => {
-                lhs.encode(&mut out[1..2]);
-                rhs.encode(&mut out[2..3]);
-                dst.encode(&mut out[3..4]);
-            }
-
-            I::LDI { dst, src } => {
-                dst.encode(&mut out[1..2]);
-                src.encode(&mut out[2..]);
-            }
-
-            I::MOV { dst, src } => {
-                dst.encode(&mut out[1..2]);
-                src.encode(&mut out[2..3]);
-            }
-
-            I::HLT => {}
-        }
-    }
-}
-
-impl<A: Architecture> Decode for Instruction<A> {
-    fn decode(ins: &[u8]) -> Result<Self, DecodeError>
-    where
-        Self: Sized,
-    {
-        if ins.len() != A::INSTRUCTION_SIZE {
-            return Err(DecodeError::InvalidLength {
-                expected: A::INSTRUCTION_SIZE,
-                got: ins.len(),
-            });
-        }
-
-        let opcode = ins[0];
-        let operand1 = &ins[1..2];
-        let operand2 = &ins[2..3];
-        let operand3 = &ins[3..4];
-
-        Ok(match opcode {
-            0x0 => Instruction::NOP,
-            0x1 => {
-                let lhs = Register::decode(operand1)?;
-                let rhs = Register::decode(operand2)?;
-                let dst = Register::decode(operand3)?;
-
-                Instruction::ADD { dst, lhs, rhs }
-            }
-            0x2 => {
-                let lhs = Register::decode(operand1)?;
-                let rhs = Register::decode(operand2)?;
-                let dst = Register::decode(operand3)?;
-
-                Instruction::SUB { dst, lhs, rhs }
-            }
-            0x5 => {
-                let dst = Register::decode(operand1)?;
-                let src = Immediate::decode(&ins[2..])?;
-
-                Instruction::LDI { dst, src }
-            }
-            0x6 => {
-                let dst = Register::decode(operand1)?;
-                let src = Register::decode(operand2)?;
-
-                Instruction::MOV { dst, src }
-            }
-            0xFF => Instruction::HLT,
-            code => return Err(DecodeError::UnknownOpCode { code }),
-        })
+    /// DEC (Decrease) decreases the given register value
+    pub fn dec(&mut self, dst: Register) {
+        self.general[dst as usize] = self.general[dst as usize].wrapping_sub(A::Word::ONE);
     }
 }

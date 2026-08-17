@@ -18,6 +18,14 @@ pub enum Token {
     Colon,
     #[token(",")]
     Comma,
+    #[token("[")]
+    LBracket,
+    #[token("]")]
+    RBracket,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
 
     #[regex(r"[rR]([0-9]|1[0-5])", |lex| lex.slice()[1..].parse().ok())]
     Register(u8),
@@ -25,7 +33,8 @@ pub enum Token {
     #[regex(r"0[xX][0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[2..], 16).ok())] // Hexadecimal
     #[regex(r"0[oO][0-7]+", |lex| i64::from_str_radix(&lex.slice()[2..], 8).ok())] // Octal
     #[regex(r"0[bB][0-1]+", |lex| i64::from_str_radix(&lex.slice()[2..], 2).ok())] // Binary
-    #[regex(r"-?[0-9]+", |lex| lex.slice().parse().ok())] // Decimal/Denary
+    #[regex(r"0[dD][0-9]+", |lex| i64::from_str_radix(&lex.slice()[2..], 10).ok())] // Decimal/Denary
+    #[regex(r"-?[0-9]+", |lex| lex.slice().parse().ok())]
     Immediate(i64),
 
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice().to_string())]
@@ -41,6 +50,14 @@ impl fmt::Display for Token {
 #[derive(Debug, Clone)]
 pub enum LexError {
     InvalidToken(usize),
+}
+
+impl core::fmt::Display for LexError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LexError::InvalidToken(at) => write!(f, "Found invalid token at {at}"),
+        }
+    }
 }
 
 // This is the bridge: lalrpop wants an Iterator<Item = Result<(usize, Token, usize), LexError>>

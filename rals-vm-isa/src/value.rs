@@ -1,7 +1,7 @@
 use core::cmp::*;
 use core::ops::*;
 
-use crate::{Decode, DecodeError, Encode, instructions::Operand};
+use crate::{Decode, Encode, Operand};
 
 pub trait ImmediateValue:
     Copy
@@ -27,6 +27,8 @@ pub trait ImmediateValue:
 
     fn overflowing_add(self, rhs: Self) -> (Self, bool);
     fn overflowing_sub(self, rhs: Self) -> (Self, bool);
+    fn wrapping_add(self, rhs: Self) -> Self;
+    fn wrapping_sub(self, rhs: Self) -> Self;
 
     fn to_bytes(&self) -> Self::Bytes;
 }
@@ -52,6 +54,13 @@ macro_rules! impl_integer_value {
                     self.overflowing_sub(rhs)
                 }
 
+                fn wrapping_add(self, rhs: Self) -> Self {
+                    self.wrapping_add(rhs)
+                }
+                fn wrapping_sub(self, rhs: Self) -> Self {
+                    self.wrapping_sub(rhs)
+                }
+
                 fn to_bytes(&self) -> Self::Bytes {
                     self.to_le_bytes()
                 }
@@ -66,15 +75,12 @@ macro_rules! impl_integer_value {
             }
 
             impl Decode for $ty {
-                fn decode(ins: &[u8]) -> Result<Self, DecodeError> {
+                fn decode(ins: &[u8]) -> Self {
                     let bytes: [u8; Self::BYTES] = ins[..Self::BYTES]
                         .try_into()
-                        .map_err(|_| DecodeError::InvalidLength {
-                            expected: Self::BYTES,
-                            got: ins.len(),
-                        })?;
+                        .expect("Immediate value decoding design is wrong. Update your code");
 
-                    Ok(Self::from_le_bytes(bytes))
+                    Self::from_le_bytes(bytes)
                 }
             }
         )*
@@ -82,19 +88,3 @@ macro_rules! impl_integer_value {
 }
 
 impl_integer_value!(u8, u16, u32, u64, u128);
-
-pub fn shl_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
-    if amount == 0 {
-        return false;
-    }
-
-    ((value >> (T::BITS - amount)) & T::ONE) != T::ZERO
-}
-
-pub fn shr_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
-    if amount == 0 {
-        return false;
-    }
-
-    ((value >> (amount - 1)) & T::ONE) != T::ZERO
-}

@@ -1,5 +1,8 @@
 use super::value::ImmediateValue;
 
+/// Architecture defines how virtual system architecture should work with the decided components.
+/// It decides how big should virtual cpu instructions will be, how big memory should be. what kind
+/// of values should virtual cpu registers hold and so on.
 pub trait Architecture: Sized {
     type Word: ImmediateValue;
     type Instruction: InstructionStorage;

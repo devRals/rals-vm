@@ -2,7 +2,7 @@ use core::marker::PhantomData;
 
 use rals_vm_isa::{
     arch::{Arch8, Arch16, Arch32, Arch64, Architecture},
-    value::{ImmediateValue, shl_carry, shr_carry},
+    value::ImmediateValue,
 };
 
 /// # ALU (Arithmetic Logic Unit)
@@ -90,6 +90,47 @@ macro_rules! impl_alu {
     };
 }
 
+fn shl_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
+    if amount == 0 {
+        return false;
+    }
+
+    ((value >> (T::BITS - amount)) & T::ONE) != T::ZERO
+}
+
+fn shr_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
+    if amount == 0 {
+        return false;
+    }
+
+    ((value >> (amount - 1)) & T::ONE) != T::ZERO
+}
+
+fn sar_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
+    // same bit falls out as a logical shift right — carry doesn't care about sign-fill
+    shr_carry(value, amount)
+}
+
+fn sar_value<T: ImmediateValue>(value: T, amount: u32) -> T {
+    if amount == 0 {
+        return value;
+    }
+
+    let shifted = value >> amount;
+    let sign_set = (value & T::SIGN_MASK) != T::ZERO;
+
+    if sign_set {
+        // Build a mask of 1s covering the top `amount` bits, e.g. for amount=2:
+        // start:      1111...1111   (!T::ZERO, all ones)
+        // >> amount:  0011...1111   (logical shift right by amount)
+        // !          :1100...0000   (invert -> top `amount` bits are 1, rest 0)
+        let fill_mask = !((!T::ZERO) >> amount);
+        shifted | fill_mask
+    } else {
+        shifted
+    }
+}
+
 impl_alu! {
     add(a: A::Word, b: A::Word) ->
         value: a.overflowing_add(b),
@@ -109,11 +150,7 @@ impl_alu! {
         overflow: false
 
     shl(a: A::Word, amount: u32) ->
-        value: {
-            let value = a << amount;
-            let carry = shl_carry(a, amount);
-            (value, carry)
-        },
+        value: (a << amount, shl_carry(a, amount)) ,
         overflow: {
             let old_sign = (a & A::Word::SIGN_MASK) != A::Word::ZERO;
             let new_sign = (value & A::Word::SIGN_MASK) != A::Word::ZERO;
@@ -122,14 +159,13 @@ impl_alu! {
             overflow
         }
     shr(a: A::Word, amount: u32) ->
-        value: {
-            let value = a >> amount;
-            let carry = shr_carry(a, amount);
-            (value, carry)
-        },
+        value: (a >> amount, shr_carry(a, amount)) ,
         overflow: amount == 1 && (a & A::Word::SIGN_MASK) != A::Word::ZERO
+    sar(a: A::Word, amount: u32) ->
+        value: (sar_value(a, amount), sar_carry(a, amount)),
+        overflow: false // "Arithmentic shifting right" does not overflow
 
-    inv(a: A::Word) ->
+    not(a: A::Word) ->
         value: (!a, false),
         overflow: false
 }

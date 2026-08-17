@@ -1,5 +1,5 @@
-use crate::{cpu::reg_file::Register, vm::VirtualMachine};
-use rals_vm_isa::{arch::Architecture, instructions::Immediate};
+use crate::vm::VirtualMachine;
+use rals_vm_isa::{arch::Architecture, instructions::Immediate, registers::Register};
 
 impl<A: Architecture> VirtualMachine<A> {
     pub fn execute_nop(&mut self) {

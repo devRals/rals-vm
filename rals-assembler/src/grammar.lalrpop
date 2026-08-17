@@ -12,6 +12,10 @@ extern {
         "dotident" => Token::DotIdent(<String>),
         ":" => Token::Colon,
         "," => Token::Comma,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+        "+" => Token::Plus,
+        "-" => Token::Minus,
         "reg" => Token::Register(<u8>),
         "imm" => Token::Immediate(<i64>),
         "ident" => Token::Ident(<String>),
@@ -19,30 +23,37 @@ extern {
     }
 }
 
-pub Program: Program = {
-    "\n"? <sections:Section*> => Program { sections }
+pub Program: AstProgram = {
+    "\n"* <sections:Section*> => AstProgram { sections }
 };
 
-Section: Section = {
-    "section" <name:"dotident"> "\n" <items:Item*> => Section { name, items }
+Section: AstSection = {
+    "section" <name:"dotident"> "\n"+ <items:Item*> => AstSection { name, items }
 };
 
-Item: Item = {
-    <name:"ident"> ":" <value:"imm"?> "\n" => match value {
-        Some(v) => Item::Directive { key: name, value: v },
-        None => Item::Label(name),
+Item: AstItem = {
+    <name:"ident"> ":" <value:"imm"?> "\n"+ => match value {
+        Some(v) => AstItem::Directive { key: name, value: v },
+        None => AstItem::Label(name),
     },
-    <i:Instruction> "\n" => Item::Instruction(i),
+    <i:Instruction> "\n"+ => AstItem::Instruction(i),
 };
 
-Instruction: Instruction = {
-    <m:"ident"> <ops:Comma<Operand>> => Instruction { mnemonic: m, operands: ops },
+Instruction: AstInstruction = {
+    <m:"ident"> <ops:Comma<Operand>> => AstInstruction { mnemonic: m, operands: ops },
 };
 
-Operand: Operand = {
-    "reg" => Operand::Reg(<>),
-    "imm" => Operand::Imm(<>),
-    "ident" => Operand::Label(<>),
+Operand: AstOperand = {
+    <r: "reg"> => AstOperand::Reg(r),
+    <i: "imm"> => AstOperand::Imm(i),
+    <l: "ident"> => AstOperand::Label(l),
+    "[" <base:"reg"> <offset: DerefOffset> "]" => AstOperand::Deref {base, offset},
+};
+
+DerefOffset: i64 = {
+    "+" <i: "imm"> => i,
+    "-" <i: "imm"> => -i,
+    => 0
 };
 
 // Standard lalrpop idiom for comma-separated lists — no left-recursion,

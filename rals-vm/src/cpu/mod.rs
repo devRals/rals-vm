@@ -8,7 +8,7 @@ use reg_file::*;
 /// CPU is one of the most important components of a computer. It's responsible of doing
 /// all of the arithmetic operations, executing given instructions and operating the
 /// whole system
-pub struct CentralProcessUnit<Arch: Architecture> {
+pub struct CentralProcessUnit<Arch: Architecture = Arch32> {
     /// ALU is the component responsible for performing arithmetic operations
     pub alu: ArithmeticLogicUnit<Arch>,
     /// Register File is responsible for telling us which register holds which value. As an extra it
