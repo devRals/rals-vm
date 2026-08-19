@@ -1,5 +1,3 @@
-use core::marker::PhantomData;
-
 use rals_vm_isa::{arch::Architecture, registers::Register, value::ImmediateValue};
 
 /// PC (Program Counter not Personal Computer) is a physical&hardware CPU Component that
@@ -9,48 +7,50 @@ use rals_vm_isa::{arch::Architecture, registers::Register, value::ImmediateValue
 #[derive(Default)]
 pub struct ProgramCounter<A: Architecture> {
     pub stopped: bool,
-    counter: usize,
-    _arch: PhantomData<A>,
+    counter: A::Word,
 }
 
 impl<A: Architecture> ProgramCounter<A> {
     pub const fn new() -> Self {
         ProgramCounter {
-            counter: 0,
+            counter: A::Word::ZERO,
             stopped: false,
-            _arch: PhantomData,
         }
     }
 
     pub fn advance(&mut self) {
         if !self.stopped {
-            self.counter += A::INSTRUCTION_SIZE;
+            if self.counter == A::Word::MAX {
+                panic!(
+                    "reached the maximum program counter value. Consider using a bigger architecture word"
+                )
+            }
+            self.counter = self.counter + A::Word::ONE;
         }
     }
 
     /// JMP (Jump) goes to the given instruction address and continues from at that point
-    pub fn jmp(&mut self, addr: usize) {
+    pub fn jmp(&mut self, addr: A::Word) {
         if !self.stopped {
             self.counter = addr;
         }
     }
 
     /// JMR (Jump Relative) skips `amount` amount of instructions and continues from at that point
-    pub fn jmr(&mut self, amount: isize) {
+    pub fn jmr(&mut self, amount: A::Word) {
         if !self.stopped {
-            let byte_offset = (A::INSTRUCTION_SIZE as isize) * amount;
-            // reinterpret the signed byte offset as the unsigned wrapping delta
-            let next = self.counter.wrapping_add(byte_offset as usize);
+            let next = self.counter.wrapping_add(amount);
             self.counter = next;
         }
     }
 
+    /// HLT (Halt) stops whole instruction fetch/decode/execute flow
     pub fn hlt(&mut self) {
         self.stopped = true;
     }
 
-    pub const fn get(&self) -> usize {
-        self.counter
+    pub fn get(&self) -> usize {
+        self.counter.as_usize() * A::INSTRUCTION_SIZE
     }
 }
 
@@ -62,6 +62,9 @@ pub struct RegisterFile<A: Architecture> {
 }
 
 impl<A: Architecture> RegisterFile<A> {
+    /// Zero registers in CPU's cant be written and their values are always zero
+    const ZERO_REGISTER: Register = Register::R0;
+
     pub const fn new() -> Self {
         RegisterFile {
             pc: ProgramCounter::new(),
@@ -70,17 +73,17 @@ impl<A: Architecture> RegisterFile<A> {
     }
 
     pub fn reset(&mut self) {
-        self.pc.counter = 0;
+        self.pc.counter = A::Word::ZERO;
         self.general.fill(A::Word::ZERO);
     }
 
     /// LDI (Load Immediate) changes the `dst` register value to given value
-    pub fn ldi(&mut self, dst: Register, src: A::Word) {
+    pub const fn ldi(&mut self, dst: Register, src: A::Word) {
         self.general[dst as usize] = src;
     }
 
     /// MOV (move) changes `dst` register value to `src` register value
-    pub fn mov(&mut self, dst: Register, src: Register) {
+    pub const fn mov(&mut self, dst: Register, src: Register) {
         self.general[dst as usize] = self.general[src as usize]
     }
 
@@ -91,6 +94,17 @@ impl<A: Architecture> RegisterFile<A> {
 
     /// DEC (Decrease) decreases the given register value
     pub fn dec(&mut self, dst: Register) {
-        self.general[dst as usize] = self.general[dst as usize].wrapping_sub(A::Word::ONE);
+        self.general[dst as usize] = self.general[dst as usize].wrapping_sub(A::Word::MAX);
+    }
+
+    pub fn set_reg(&mut self, reg: Register, value: A::Word) {
+        // zero registers physically cannot be changed
+        if reg == Self::ZERO_REGISTER {
+            return;
+        }
+        if let Register::UnknownRegister = reg {
+            panic!("recieved an unknown register. please update your code")
+        }
+        self.general[reg as usize] = value
     }
 }

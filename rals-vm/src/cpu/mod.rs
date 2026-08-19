@@ -32,8 +32,4 @@ impl<A: Architecture> CentralProcessUnit<A> {
             },
         }
     }
-
-    pub fn reset(&mut self) {
-        self.reg_file.reset();
-    }
 }

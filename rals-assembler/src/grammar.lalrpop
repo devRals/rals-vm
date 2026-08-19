@@ -16,6 +16,7 @@ extern {
         "]" => Token::RBracket,
         "+" => Token::Plus,
         "-" => Token::Minus,
+        "*" => Token::Asterisk,
         "reg" => Token::Register(<u8>),
         "imm" => Token::Immediate(<i64>),
         "ident" => Token::Ident(<String>),
@@ -47,13 +48,30 @@ Operand: AstOperand = {
     <r: "reg"> => AstOperand::Reg(r),
     <i: "imm"> => AstOperand::Imm(i),
     <l: "ident"> => AstOperand::Label(l),
-    "[" <base:"reg"> <offset: DerefOffset> "]" => AstOperand::Deref {base, offset},
+    "[" <base:"reg"> <index: DerefIndex?> <scale: DerefScale?> <displacement: DerefDisplacement?> "]" 
+        => {
+        if let Some(_) = scale {
+            panic!("using scale operations on deref expression are not supported")
+        }
+
+        AstOperand::Deref {
+            base,
+            index: index.unwrap_or(0),
+            displacement: displacement.unwrap_or(0)
+        }
+    },
 };
 
-DerefOffset: i64 = {
+DerefIndex: u8 = {
+    "+" <r: "reg"> => r,
+};
+
+DerefScale: i64 = {
+    "*" <i: "imm"> => i,
+};
+
+DerefDisplacement: i64 = {
     "+" <i: "imm"> => i,
-    "-" <i: "imm"> => -i,
-    => 0
 };
 
 // Standard lalrpop idiom for comma-separated lists — no left-recursion,

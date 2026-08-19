@@ -1,5 +1,5 @@
 use crate::vm::VirtualMachine;
-use rals_vm_isa::{arch::Architecture, instructions::Immediate, registers::Register};
+use rals_vm_isa::{arch::Architecture, registers::Register};
 
 impl<A: Architecture> VirtualMachine<A> {
     pub fn execute_nop(&mut self) {
@@ -12,7 +12,7 @@ impl<A: Architecture> VirtualMachine<A> {
 
         let result = self.cpu.alu.add(lhs, rhs);
 
-        self.cpu.reg_file.general[dst as usize] = result.value;
+        self.cpu.reg_file.set_reg(dst, result.value);
         self.cpu.flags = result.flags;
     }
 
@@ -22,17 +22,18 @@ impl<A: Architecture> VirtualMachine<A> {
 
         let result = self.cpu.alu.sub(lhs, rhs);
 
-        self.cpu.reg_file.general[dst as usize] = result.value;
+        self.cpu.reg_file.set_reg(dst, result.value);
         self.cpu.flags = result.flags;
     }
 
-    pub fn execute_ldi(&mut self, dst: Register, src: Immediate<A>) {
-        let dst = &mut self.cpu.reg_file.general[dst as usize];
-        *dst = src.value;
+    pub fn execute_ldi(&mut self, dst: Register, src: A::Word) {
+        self.cpu.reg_file.set_reg(dst, src);
     }
 
     pub fn execute_mov(&mut self, dst: Register, src: Register) {
-        self.cpu.reg_file.general[dst as usize] = self.cpu.reg_file.general[src as usize];
+        self.cpu
+            .reg_file
+            .set_reg(dst, self.cpu.reg_file.general[src as usize]);
     }
 
     pub fn execute_hlt(&mut self) {

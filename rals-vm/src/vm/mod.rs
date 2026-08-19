@@ -14,10 +14,12 @@ pub struct VirtualMachine<A: Architecture = Arch64> {
 }
 
 impl<A: Architecture> VirtualMachine<A> {
-    pub const fn new(memory: A::Memory) -> Self {
+    pub fn new() -> Self {
         VirtualMachine {
             cpu: CentralProcessUnit::new(),
-            mem: RandomAccessMemory { data: memory },
+            mem: RandomAccessMemory {
+                data: A::new_empty_memory(),
+            },
         }
     }
 
@@ -89,6 +91,7 @@ impl<A: Architecture> VirtualMachine<A> {
         self.cpu.reg_file.pc.advance();
     }
 
+    /// Keeps executing the loaded instructions until the system reaches an HLT instruction
     pub fn run(&mut self) {
         while !self.cpu.reg_file.pc.stopped {
             self.step();

@@ -1,3 +1,5 @@
+use rals_vm_isa::arch::Architecture;
+
 pub struct AstProgram {
     pub sections: Vec<AstSection>,
 }
@@ -23,7 +25,8 @@ pub struct AstInstruction {
     pub operands: Vec<AstOperand>,
 }
 
-pub enum Instruction {
+#[derive(Clone)]
+pub enum Instruction<A: Architecture> {
     NOP,
 
     INC {
@@ -47,12 +50,12 @@ pub enum Instruction {
     ADDI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
     SUBI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
 
     SHL {
@@ -74,17 +77,17 @@ pub enum Instruction {
     SHLI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
     SHRI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
     SARI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
 
     OR {
@@ -106,17 +109,17 @@ pub enum Instruction {
     ORI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
     XORI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
     ANDI {
         dst: u8,
         lhs: u8,
-        imm: i64,
+        imm: A::Word,
     },
 
     CMP {
@@ -126,7 +129,7 @@ pub enum Instruction {
 
     LDI {
         reg: u8,
-        imm: i64,
+        imm: A::Word,
     },
     MOV {
         r1: u8,
@@ -135,111 +138,113 @@ pub enum Instruction {
 
     /// This instruction will be resolved in the pass2 stage
     JMPUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     JMR {
-        amount: i64,
+        amount: A::Word,
     },
 
     /// This instruction will be resolved in the pass2 stage
     JOUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JCUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JZUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JSUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
 
     /// This instruction will be resolved in the pass2 stage
     JNOUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JNCUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JNZUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
     /// This instruction will be resolved in the pass2 stage
     JNSUnresolved {
-        target: AstJumpTarget,
+        target: AstJumpTarget<A>,
     },
 
     JMP {
-        addr: usize,
+        addr: A::Word,
     },
 
     JO {
-        addr: usize,
+        addr: A::Word,
     },
     JC {
-        addr: usize,
+        addr: A::Word,
     },
     JZ {
-        addr: usize,
+        addr: A::Word,
     },
     JS {
-        addr: usize,
+        addr: A::Word,
     },
 
     JNO {
-        addr: usize,
+        addr: A::Word,
     },
     JNC {
-        addr: usize,
+        addr: A::Word,
     },
     JNZ {
-        addr: usize,
+        addr: A::Word,
     },
     JNS {
-        addr: usize,
+        addr: A::Word,
     },
 
     JRO {
-        amount: i64,
+        amount: A::Word,
     },
     JRC {
-        amount: i64,
+        amount: A::Word,
     },
     JRZ {
-        amount: i64,
+        amount: A::Word,
     },
     JRS {
-        amount: i64,
+        amount: A::Word,
     },
 
     JRNO {
-        amount: i64,
+        amount: A::Word,
     },
     JRNC {
-        amount: i64,
+        amount: A::Word,
     },
     JRNZ {
-        amount: i64,
+        amount: A::Word,
     },
     JRNS {
-        amount: i64,
+        amount: A::Word,
     },
 
     LOAD {
         dst: u8,
         target_base: u8,
-        target_offset: i64,
+        target_index: u8,
+        target_displacement: A::Word,
     },
-    STR {
-        dst: u8,
-        target_base: u8,
-        target_offset: i64,
+    STORE {
+        dst_base: u8,
+        dst_index: u8,
+        dst_displacement: A::Word,
+        target: u8,
     },
 
     PUSH {
@@ -252,9 +257,10 @@ pub enum Instruction {
     HLT,
 }
 
-pub enum AstJumpTarget {
+#[derive(Clone)]
+pub enum AstJumpTarget<A: Architecture> {
     Label(String),
-    Addr(usize),
+    Addr(A::Word),
 }
 
 #[derive(Clone)]
@@ -262,11 +268,15 @@ pub enum AstOperand {
     Reg(u8),
     Imm(i64),
     Label(String),
-    Deref { base: u8, offset: i64 },
+    Deref {
+        base: u8,
+        index: u8,
+        displacement: i64,
+    },
 }
 
-pub struct TextSection {
-    pub instructions: Vec<Instruction>,
+pub struct TextSection<A: Architecture> {
+    pub instructions: Vec<Instruction<A>>,
 }
 
 pub struct HeaderSection {

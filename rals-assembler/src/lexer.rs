@@ -26,6 +26,8 @@ pub enum Token {
     Plus,
     #[token("-")]
     Minus,
+    #[token("*")]
+    Asterisk,
 
     #[regex(r"[rR]([0-9]|1[0-5])", |lex| lex.slice()[1..].parse().ok())]
     Register(u8),

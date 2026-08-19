@@ -1,10 +1,12 @@
 use core::cmp::*;
 use core::ops::*;
+use std::fmt::Display;
 
 use crate::Decode;
 
 pub trait ImmediateValue:
     Copy
+    + Display
     + Decode
     + Add<Output = Self>
     + Sub<Output = Self>
@@ -21,6 +23,7 @@ pub trait ImmediateValue:
 
     const ZERO: Self;
     const ONE: Self;
+    const MAX: Self;
     const SIGN_MASK: Self;
     const BITS: u32;
     const BYTES: usize;
@@ -31,7 +34,13 @@ pub trait ImmediateValue:
     fn wrapping_sub(self, rhs: Self) -> Self;
 
     fn to_bytes(&self) -> Self::Bytes;
-    fn try_from_i64(value: i64) -> Option<Self>; // For assembly side interplation
+    /// Tries to cast the given value to [`ImmediateValue`]. Returns [`None`] if value is way of
+    /// [`ImmediateValue`]'s bit range
+    /// 8 bytes is the size rust uses to store (u/i)64 and (u/i)size values.
+    /// Note that rals-vm uses less endian bytes for immediate values
+    /// So using native or bigger endian would return diffirent values in the VM side
+    fn try_from_signed(value: i64) -> Option<Self>;
+    fn as_usize(self) -> usize;
 }
 
 macro_rules! impl_integer_value {
@@ -43,6 +52,7 @@ macro_rules! impl_integer_value {
                 const ZERO: Self = 0;
                 const ONE: Self = 1;
                 const BITS: u32 = <$ty>::BITS;
+                const MAX: Self = <$ty>::MAX;
                 const BYTES: usize = <$ty>::BITS as usize / 8;
                 const SIGN_MASK: Self =
                     1 << (<$ty>::BITS - 1);
@@ -66,9 +76,21 @@ macro_rules! impl_integer_value {
                     self.to_le_bytes()
                 }
 
-                fn try_from_i64(value: i64) -> Option<Self> {
-                    Self::try_from(value).ok()
+                fn try_from_signed(value: i64) -> Option<Self> {
+                    let bits = <$ty>::BITS;
+
+                    if bits < 64 {
+                        let min = -(1i64 << (bits - 1));
+                        let max = (1i64 << bits) - 1;
+
+                        if value < min || value > max {
+                            return None;
+                        }
+                    }
+
+                    Some(value as $ty)
                 }
+                fn as_usize(self) -> usize { self as usize }
             }
 
             impl Decode for $ty {

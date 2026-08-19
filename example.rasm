@@ -1,0 +1,25 @@
+section .header 
+arch: 8
+
+section .text
+_start:
+    jmp     meow
+    ldi     r1, 0xfe ; My mem address
+    ldi     r2, 5
+    load    r3, [r1 + r2 + 6] ; 0xfe base + 5 index + 6 displacement
+
+meow: ; Do silly stuff here
+    xor     r9, r9, r9   ; index
+    ldi     r4, 10       ; data length (as indicies)
+    ldi     r3, 0x45     ; data address
+    load    r5, [r3 + r9]
+loop:
+    ; do stuff with r5 fetched data and don't touch r4, r3 and r9
+    inc     r9
+    cmp     r4, r9
+    jnz     loop
+    ; Loop ends here use your registers however you want
+
+    
+_end:
+    hlt

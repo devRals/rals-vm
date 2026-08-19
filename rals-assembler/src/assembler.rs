@@ -1,46 +1,38 @@
 use std::{collections::HashMap, error::Error, fmt::Display, marker::PhantomData};
 
 use rals_vm_isa::Encode;
-use rals_vm_isa::arch::{Arch32, Architecture};
+use rals_vm_isa::arch::Architecture;
+use rals_vm_isa::value::ImmediateValue;
 
 use crate::ast::{AstInstruction, AstItem, AstProgram, Directive, HeaderSection, Instruction};
-use crate::grammar::ProgramParser;
-use crate::lexer::{LexError, LexerAdapter, Token};
+use crate::lexer::{LexError, Token};
 use lalrpop_util::ParseError;
 
 pub type AsmParseError = ParseError<usize, Token, LexError>;
 
-pub struct ResolvedProgram {
-    instructions: Vec<Instruction>,
+pub struct ResolvedProgram<A: Architecture> {
+    instructions: Vec<Instruction<A>>,
 }
 
 type Label = String;
-type Address = usize;
-type SymbolTable = HashMap<Label, Address>;
+pub(crate) type SymbolTable<A> = HashMap<Label, <A as Architecture>::Word>;
 
-pub struct Assembler<A: Architecture = Arch32> {
-    symbol_table: SymbolTable,
+pub struct Assembler<A: Architecture> {
+    symbol_table: SymbolTable<A>,
     _arch: PhantomData<A>,
 }
 
 impl<A: Architecture> Assembler<A> {
     pub fn new() -> Self {
         Assembler {
-            symbol_table: SymbolTable::new(),
+            symbol_table: SymbolTable::<A>::new(),
             _arch: PhantomData,
         }
     }
 
-    pub fn parse(input: &str) -> Result<AstProgram, AsmParseError> {
-        let lexer = LexerAdapter::new(input);
-        ProgramParser::new().parse(lexer)
-    }
-
     fn resolve_data_section(&mut self) {}
 
-    fn write_header(out: &mut Vec<u8>) -> Result<(), Pass2Error> {
-        Ok(())
-    }
+    fn write_header(_out: &mut Vec<u8>) {}
 
     pub fn resolve_header(program: &AstProgram) -> Option<Result<HeaderSection, Pass1Error>> {
         let header_section = program
@@ -70,7 +62,7 @@ impl<A: Architecture> Assembler<A> {
         Some(Ok(resolved))
     }
 
-    fn resolve_instruction(&self, ins: AstInstruction) -> Result<Instruction, Pass1Error> {
+    fn resolve_instruction(&self, ins: AstInstruction) -> Result<Instruction<A>, Pass1Error> {
         match ins.mnemonic.to_lowercase().as_str() {
             "nop" => self.nop(ins),
 
@@ -105,7 +97,7 @@ impl<A: Architecture> Assembler<A> {
             "mov" => self.mov(ins),
 
             "load" => self.load(ins),
-            "str" => self.str(ins),
+            "store" => self.str(ins),
 
             "jmp" => self.jmp(ins),
             "jmr" => self.jmr(ins),
@@ -139,11 +131,9 @@ impl<A: Architecture> Assembler<A> {
         }
     }
 
-    pub fn pass1(&mut self, program: AstProgram) -> Result<ResolvedProgram, Pass1Error> {
-        let mut pc = 0;
-        let mut resolved = ResolvedProgram {
-            instructions: Vec::new(),
-        };
+    pub fn pass1(&mut self, program: AstProgram) -> Result<ResolvedProgram<A>, Pass1Error> {
+        let mut pc = A::Word::ZERO;
+        let mut instructions = Vec::new();
 
         self.resolve_data_section();
 
@@ -161,34 +151,66 @@ impl<A: Architecture> Assembler<A> {
                 }
                 AstItem::Instruction(ins) => {
                     let resolved_ins = self.resolve_instruction(ins)?;
-                    resolved.instructions.push(resolved_ins);
-                    pc += A::INSTRUCTION_SIZE;
+                    instructions.push(resolved_ins);
+                    let (next, overflowed) = pc.overflowing_add(A::Word::ONE);
+                    if overflowed {
+                        return Err(Pass1Error::PCOverflowed);
+                    } else {
+                        pc = next;
+                    }
                 }
             }
         }
 
-        Ok(resolved)
+        let mut resolved = vec![];
+        for i in instructions {
+            resolved.push(i.resolve(&self.symbol_table)?)
+        }
+
+        Ok(ResolvedProgram {
+            instructions: resolved,
+        })
     }
 
-    pub fn pass2(&mut self, program: ResolvedProgram) -> Result<Vec<u8>, Pass2Error> {
+    pub fn pass2(&mut self, program: ResolvedProgram<A>) -> Vec<u8> {
         let mut out = Vec::new();
 
-        Assembler::<A>::write_header(&mut out)?;
+        Assembler::<A>::write_header(&mut out);
 
         for ins in program.instructions {
-            let resolved = ins.resolve(&self.symbol_table)?;
             let mut ins_buf = vec![0u8; A::INSTRUCTION_SIZE];
-            Encode::<A>::encode(resolved, &mut ins_buf);
+            ins.encode(&mut ins_buf);
             out.extend(ins_buf);
         }
 
-        Ok(out)
+        out
+    }
+
+    pub fn assemble(&mut self, program: AstProgram) -> Result<Vec<u8>, AssembleError> {
+        let resolved_program = self.pass1(program).map_err(AssembleError::Pass1Error)?;
+        Ok(self.pass2(resolved_program))
+    }
+}
+
+#[derive(Debug)]
+pub enum AssembleError {
+    Pass1Error(Pass1Error),
+}
+
+impl core::error::Error for AssembleError {}
+impl core::fmt::Display for AssembleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pass1Error(e) => e.fmt(f),
+        }
     }
 }
 
 #[derive(Debug)]
 pub enum Pass1Error {
+    Undefined(String),
     TextSectionNotFound,
+    PCOverflowed,
     UnknownOpCode(String),
     UnknwonArchitecture(i64),
     WrongNumberOfOperands {
@@ -200,6 +222,10 @@ pub enum Pass1Error {
         opcode: String,
         correct: String,
     },
+    ImmediateOutOfRange {
+        value: i64,
+        max: usize,
+    },
 }
 
 impl Error for Pass1Error {}
@@ -207,7 +233,14 @@ impl Display for Pass1Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use Pass1Error::*;
         match self {
+            ImmediateOutOfRange { value, max } => {
+                write!(f, "{value} is out of range of word value. Max is {max}")
+            }
             TextSectionNotFound => write!(f, "`section .text` not found in the source"),
+            PCOverflowed => write!(
+                f,
+                "program counter overflowed. if it continues advance later instructions positions will be wrong. Try using a bigger architecture word",
+            ),
             UnknownOpCode(opcode) => write!(f, "There's no opcode such called `{opcode}`"),
             UnknwonArchitecture(arch) => write!(f, "There's no architecture such called `x{arch}`"),
             WrongUsageOf { opcode, correct } => {
@@ -221,20 +254,6 @@ impl Display for Pass1Error {
                 f,
                 "Operation Code `{opcode}` expected `{expected}` amount of operands, got `{got}`"
             ),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum Pass2Error {
-    Undefined(String),
-}
-
-impl Error for Pass2Error {}
-impl Display for Pass2Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use Pass2Error::*;
-        match self {
             Undefined(ident) => write!(f, "`{ident}` is not defined"),
         }
     }

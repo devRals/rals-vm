@@ -1,7 +1,7 @@
 use crate::Decode;
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Register {
     R0,
     R1,

@@ -6,7 +6,7 @@ pub mod instructions;
 pub mod registers;
 pub mod value;
 
-pub trait Encode<A: arch::Architecture> {
+pub trait Encode {
     /// In a real application return value should be wrapped in a Result enum
     /// but since we're just trying to replicate a real cpu this is not required
     fn encode(self, out: &mut [u8]);
