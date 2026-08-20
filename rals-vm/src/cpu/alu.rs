@@ -90,29 +90,30 @@ macro_rules! impl_alu {
     };
 }
 
-fn shl_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
-    if amount == 0 {
+fn shl_carry<T: ImmediateValue>(value: T, amount: T) -> bool {
+    if amount == T::ZERO || amount.as_usize() > T::BITS as usize {
         return false;
     }
 
-    ((value >> (T::BITS - amount)) & T::ONE) != T::ZERO
+    let shift =
+        T::try_from_usize(T::BITS as usize - amount.as_usize()).expect("Failed to get shl carry");
+    ((value >> shift) & T::ONE) != T::ZERO
 }
 
-fn shr_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
-    if amount == 0 {
+fn shr_carry<T: ImmediateValue>(value: T, amount: T) -> bool {
+    if amount == T::ZERO {
         return false;
     }
 
-    ((value >> (amount - 1)) & T::ONE) != T::ZERO
+    ((value >> (amount - T::ONE)) & T::ONE) != T::ZERO
 }
 
-fn sar_carry<T: ImmediateValue>(value: T, amount: u32) -> bool {
-    // same bit falls out as a logical shift right — carry doesn't care about sign-fill
+fn sar_carry<T: ImmediateValue>(value: T, amount: T) -> bool {
     shr_carry(value, amount)
 }
 
-fn sar_value<T: ImmediateValue>(value: T, amount: u32) -> T {
-    if amount == 0 {
+fn sar_value<T: ImmediateValue>(value: T, amount: T) -> T {
+    if amount == T::ZERO {
         return value;
     }
 
@@ -120,10 +121,6 @@ fn sar_value<T: ImmediateValue>(value: T, amount: u32) -> T {
     let sign_set = (value & T::SIGN_MASK) != T::ZERO;
 
     if sign_set {
-        // Build a mask of 1s covering the top `amount` bits, e.g. for amount=2:
-        // start:      1111...1111   (!T::ZERO, all ones)
-        // >> amount:  0011...1111   (logical shift right by amount)
-        // !          :1100...0000   (invert -> top `amount` bits are 1, rest 0)
         let fill_mask = !((!T::ZERO) >> amount);
         shifted | fill_mask
     } else {
@@ -149,19 +146,19 @@ impl_alu! {
         value: (a & b, false),
         overflow: false
 
-    shl(a: A::Word, amount: u32) ->
+    shl(a: A::Word, amount: A::Word) ->
         value: (a << amount, shl_carry(a, amount)) ,
         overflow: {
             let old_sign = (a & A::Word::SIGN_MASK) != A::Word::ZERO;
             let new_sign = (value & A::Word::SIGN_MASK) != A::Word::ZERO;
 
-            let overflow = amount == 1 && old_sign != new_sign;
+            let overflow = amount == A::Word::ONE && old_sign != new_sign;
             overflow
         }
-    shr(a: A::Word, amount: u32) ->
+    shr(a: A::Word, amount: A::Word) ->
         value: (a >> amount, shr_carry(a, amount)) ,
-        overflow: amount == 1 && (a & A::Word::SIGN_MASK) != A::Word::ZERO
-    sar(a: A::Word, amount: u32) ->
+        overflow: amount == A::Word::ONE && (a & A::Word::SIGN_MASK) != A::Word::ZERO
+    sar(a: A::Word, amount: A::Word) ->
         value: (sar_value(a, amount), sar_carry(a, amount)),
         overflow: false // "Arithmentic shifting right" does not overflow
 

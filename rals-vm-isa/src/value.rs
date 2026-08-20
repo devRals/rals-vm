@@ -13,8 +13,8 @@ pub trait ImmediateValue:
     + BitAnd<Output = Self>
     + BitOr<Output = Self>
     + BitXor<Output = Self>
-    + Shr<u32, Output = Self>
-    + Shl<u32, Output = Self>
+    + Shr<Output = Self>
+    + Shl<Output = Self>
     + Not<Output = Self>
     + PartialEq<Self>
     + PartialOrd<Self>
@@ -40,6 +40,7 @@ pub trait ImmediateValue:
     /// Note that rals-vm uses less endian bytes for immediate values
     /// So using native or bigger endian would return diffirent values in the VM side
     fn try_from_signed(value: i64) -> Option<Self>;
+    fn try_from_usize(value: usize) -> Option<Self>;
     fn as_usize(self) -> usize;
 }
 
@@ -57,13 +58,8 @@ macro_rules! impl_integer_value {
                 const SIGN_MASK: Self =
                     1 << (<$ty>::BITS - 1);
 
-                fn overflowing_add(self, rhs: Self) -> (Self, bool) {
-                    self.overflowing_add(rhs)
-                }
-
-                fn overflowing_sub(self, rhs: Self) -> (Self, bool) {
-                    self.overflowing_sub(rhs)
-                }
+                fn overflowing_add(self, rhs: Self) -> (Self, bool) { self.overflowing_add(rhs) }
+                fn overflowing_sub(self, rhs: Self) -> (Self, bool) { self.overflowing_sub(rhs) }
 
                 fn wrapping_add(self, rhs: Self) -> Self {
                     self.wrapping_add(rhs)
@@ -79,7 +75,7 @@ macro_rules! impl_integer_value {
                 fn try_from_signed(value: i64) -> Option<Self> {
                     let bits = <$ty>::BITS;
 
-                    if bits < 64 {
+                    if Self::BITS < i64::BITS {
                         let min = -(1i64 << (bits - 1));
                         let max = (1i64 << bits) - 1;
 
@@ -90,6 +86,21 @@ macro_rules! impl_integer_value {
 
                     Some(value as $ty)
                 }
+
+                fn try_from_usize(value: usize) -> Option<Self> {
+                    let bits = <$ty>::BITS;
+
+                    if bits < usize::BITS {
+                        let max = (1_usize << bits) - 1;
+
+                        if value > max {
+                            return None;
+                        }
+                    }
+
+                    Some(value as $ty)
+                }
+
                 fn as_usize(self) -> usize { self as usize }
             }
 
@@ -106,4 +117,4 @@ macro_rules! impl_integer_value {
     };
 }
 
-impl_integer_value!(u8, u16, u32, u64, u128);
+impl_integer_value!(u8, u16, u32, u64);

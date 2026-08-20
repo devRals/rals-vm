@@ -1,4 +1,4 @@
-use crate::{Decode, arch::Architecture, registers::Register, value::ImmediateValue};
+use crate::{Decode, arch::Architecture, registers::Register};
 
 #[repr(u8)]
 pub enum Instruction<A: Architecture> {
@@ -229,14 +229,34 @@ impl<A: Architecture> Instruction<A> {
     fn match_from_opcode_jmps(opcode: u8, addr: A::Word) -> Instruction<A> {
         use Instruction as I;
         match opcode {
+            0x84 => I::JMP { addr },
+
             0x74 => I::JO { addr },
             0x75 => I::JC { addr },
             0x76 => I::JS { addr },
             0x77 => I::JZ { addr },
+
             0x78 => I::JNO { addr },
             0x79 => I::JNC { addr },
             0x7a => I::JNS { addr },
             0x7b => I::JNZ { addr },
+            _ => I::UnknownInstruction,
+        }
+    }
+    fn match_from_opcode_jmps_relative(opcode: u8, amount: A::Word) -> Instruction<A> {
+        use Instruction as I;
+        match opcode {
+            0x85 => I::JMR { amount },
+
+            0x7c => I::JRO { amount },
+            0x7d => I::JRC { amount },
+            0x7e => I::JRS { amount },
+            0x7f => I::JRZ { amount },
+
+            0x80 => I::JRNO { amount },
+            0x81 => I::JRNC { amount },
+            0x82 => I::JRNS { amount },
+            0x83 => I::JRNZ { amount },
             _ => I::UnknownInstruction,
         }
     }
@@ -275,7 +295,7 @@ impl<A: Architecture> Decode for Instruction<A> {
             0x9..=0x10 => {
                 let dst = Register::decode(operand1);
                 let lhs = Register::decode(operand2);
-                let imm = A::Word::decode(&ins[4..4 + A::Word::BYTES]);
+                let imm = A::Word::decode(&ins[3..]);
 
                 Instruction::match_from_opcode_immediate(opcode, dst, lhs, imm)
             }
@@ -315,10 +335,57 @@ impl<A: Architecture> Decode for Instruction<A> {
                 }
             }
 
-            // Jumps (Absolute)
-            0x74..=0x7b => {
+            // Jumps (Direct) & JMP
+            0x74..=0x7b | 0x84 => {
                 let addr = A::Word::decode(&ins[1..]);
                 Instruction::match_from_opcode_jmps(opcode, addr)
+            }
+
+            // Jumps (Relative) & JMR
+            0x7c..=0x83 | 0x85 => {
+                let amount = A::Word::decode(&ins[1..]);
+                Instruction::match_from_opcode_jmps_relative(opcode, amount)
+            }
+
+            // LOAD
+            0xd0 => {
+                let dst = Register::decode(operand1);
+                let (target_base, target_index) =
+                    (Register::decode(operand2), Register::decode(operand3));
+                let target_displacement = A::Word::decode(&ins[4..]);
+
+                Instruction::LOAD {
+                    dst,
+                    target_base,
+                    target_index,
+                    target_displacement,
+                }
+            }
+
+            // STORE
+            0xd1 => {
+                let (dst_base, dst_index) =
+                    (Register::decode(operand2), Register::decode(operand3));
+                let target = Register::decode(operand1);
+                let dst_displacement = A::Word::decode(&ins[4..]);
+
+                Instruction::STORE {
+                    target,
+                    dst_base,
+                    dst_index,
+                    dst_displacement,
+                }
+            }
+
+            // PUSH & POP
+            0xe0 | 0xe1 => {
+                let reg = Register::decode(operand1);
+
+                match opcode {
+                    0xe0 => Instruction::PUSH { reg },
+                    0xe1 => Instruction::POP { reg },
+                    _ => unreachable!(),
+                }
             }
 
             // HLT

@@ -58,7 +58,9 @@ impl<A: Architecture> VirtualMachine<A> {
         let end = start + A::INSTRUCTION_SIZE;
 
         let bytes = self.mem.data.as_bytes();
-        &bytes[start..end]
+        bytes.get(start..end).expect(
+            "Program counter got out of memory bounds. You might forgot to use HLT instruction.",
+        )
     }
 
     pub fn decode(&self, raw_ins: &[u8]) -> Instruction<A> {
@@ -71,14 +73,76 @@ impl<A: Architecture> VirtualMachine<A> {
         match instruction {
             I::NOP => self.execute_nop(),
 
-            I::ADD { dst, lhs, rhs } => self.execute_add(lhs, rhs, dst),
-            I::SUB { dst, lhs, rhs } => self.execute_sub(lhs, rhs, dst),
+            I::INC { reg } => self.execute_inc(reg),
+            I::DEC { reg } => self.execute_dec(reg),
+
+            I::ADD { dst, lhs, rhs } => self.execute_alu_add(dst, lhs, rhs),
+            I::SUB { dst, lhs, rhs } => self.execute_alu_sub(dst, lhs, rhs),
+            I::OR { dst, lhs, rhs } => self.execute_alu_or(dst, lhs, rhs),
+            I::XOR { dst, lhs, rhs } => self.execute_alu_xor(dst, lhs, rhs),
+            I::AND { dst, lhs, rhs } => self.execute_alu_and(dst, lhs, rhs),
+            I::SHL { dst, lhs, rhs } => self.execute_alu_shl(dst, lhs, rhs),
+            I::SHR { dst, lhs, rhs } => self.execute_alu_shr(dst, lhs, rhs),
+            I::SAR { dst, lhs, rhs } => self.execute_alu_sar(dst, lhs, rhs),
+
+            I::ADDI { dst, lhs, imm } => self.execute_alu_addi(dst, lhs, imm),
+            I::SUBI { dst, lhs, imm } => self.execute_alu_subi(dst, lhs, imm),
+            I::ORI { dst, lhs, imm } => self.execute_alu_ori(dst, lhs, imm),
+            I::XORI { dst, lhs, imm } => self.execute_alu_xori(dst, lhs, imm),
+            I::ANDI { dst, lhs, imm } => self.execute_alu_andi(dst, lhs, imm),
+            I::SHLI { dst, lhs, imm } => self.execute_alu_shli(dst, lhs, imm),
+            I::SHRI { dst, lhs, imm } => self.execute_alu_shri(dst, lhs, imm),
+            I::SARI { dst, lhs, imm } => self.execute_alu_sari(dst, lhs, imm),
+
+            I::CMP { r1, r2 } => self.execute_alu_cmp(r1, r2),
+
+            I::JO { addr } => self.execute_jo(addr),
+            I::JS { addr } => self.execute_js(addr),
+            I::JC { addr } => self.execute_jc(addr),
+            I::JZ { addr } => self.execute_jz(addr),
+
+            I::JNO { addr } => self.execute_jno(addr),
+            I::JNS { addr } => self.execute_jns(addr),
+            I::JNC { addr } => self.execute_jnc(addr),
+            I::JNZ { addr } => self.execute_jnz(addr),
+
+            I::JRO { amount } => self.execute_jro(amount),
+            I::JRS { amount } => self.execute_jrs(amount),
+            I::JRC { amount } => self.execute_jrc(amount),
+            I::JRZ { amount } => self.execute_jrz(amount),
+
+            I::JRNO { amount } => self.execute_jrno(amount),
+            I::JRNS { amount } => self.execute_jrns(amount),
+            I::JRNC { amount } => self.execute_jrnc(amount),
+            I::JRNZ { amount } => self.execute_jrnz(amount),
+
+            I::JMP { addr } => self.execute_jmp(addr),
+            I::JMR { amount } => self.execute_jmp(amount),
 
             I::LDI { dst, src } => self.execute_ldi(dst, src),
             I::MOV { dst, src } => self.execute_mov(dst, src),
 
+            I::LOAD {
+                dst,
+                target_base,
+                target_index,
+                target_displacement,
+            } => self.execute_load(dst, target_base, target_index, target_displacement),
+            I::STORE {
+                target,
+                dst_base,
+                dst_index,
+                dst_displacement,
+            } => self.execute_store(dst_base, dst_index, dst_displacement, target),
+
+            I::PUSH { .. } | I::POP { .. } => {
+                panic!("stack pointer and its instructions are implemented yet")
+            }
+
+            I::UnknownInstruction => panic!(
+                "rals-vm got an unknown instruction. This might be occured due decoding or encoding might be wrong for an object"
+            ),
             I::HLT => self.execute_hlt(),
-            _ => todo!("this instruction not implemented yet"),
         }
     }
 
