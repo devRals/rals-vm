@@ -1,5 +1,7 @@
 pub mod alu;
+pub mod pc;
 pub mod reg_file;
+pub mod sp;
 
 use alu::*;
 use rals_vm_isa::arch::*;
@@ -20,7 +22,7 @@ pub struct CentralProcessUnit<Arch: Architecture = Arch32> {
 }
 
 impl<A: Architecture> CentralProcessUnit<A> {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         CentralProcessUnit {
             alu: ArithmeticLogicUnit::new(),
             reg_file: RegisterFile::new(),

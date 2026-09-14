@@ -42,6 +42,6 @@ fn resolve_header(_bytecode: &mut Vec<u8>) {}
 
 fn run<A: Architecture>(bytecode: &[u8]) {
     let mut vm = VirtualMachine::<A>::new();
-    vm.set_mem(bytecode);
+    vm.load_program(bytecode);
     vm.run();
 }

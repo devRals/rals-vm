@@ -41,13 +41,16 @@ fn main() -> anyhow::Result<()> {
         .sections
         .iter()
         .find(|s| s.name.to_lowercase() == "header".to_string())
-        && let Some(arch) = header
-            .items
-            .iter()
-            .find(|d| matches!(d, AstItem::Directive { key, value } if key == &"arch".to_string()))
+        && let Some(arch) = header.items.iter().find(
+            |d| matches!(d, AstItem::Directive { key, value, span } if key == &"arch".to_string()),
+        )
     {
         match arch {
-            AstItem::Directive { key: _, value } => match *value {
+            AstItem::Directive {
+                key: _,
+                value,
+                span: _,
+            } => match *value {
                 8 => run::<Arch8>(program, path_to_source),
                 16 => run::<Arch16>(program, path_to_source),
                 32 => run::<Arch32>(program, path_to_source),
@@ -68,9 +71,8 @@ fn run<A: Architecture>(program: AstProgram, mut path_to_source: PathBuf) -> any
 
     path_to_source.set_extension(RALS_VM_EXTENTION);
     let mut bytecode_file = File::create(path_to_source)?;
-    bytecode_file.write_all(&bytecode)?;
-
-    println!["{bytecode:?}"];
+    bytecode_file.write(&bytecode)?;
+    println!("bytecode: {bytecode:?}");
 
     Ok(())
 }

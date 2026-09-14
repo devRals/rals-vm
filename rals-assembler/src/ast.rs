@@ -1,4 +1,7 @@
 use rals_vm_isa::arch::Architecture;
+use std::ops::Range;
+
+use crate::lexer::SpecialRegister;
 
 pub struct AstProgram {
     pub sections: Vec<AstSection>,
@@ -7,11 +10,19 @@ pub struct AstProgram {
 pub struct AstSection {
     pub name: String,
     pub items: Vec<AstItem>,
+    pub span: Range<usize>,
 }
 
 pub enum AstItem {
-    Label(String),
-    Directive { key: String, value: i64 },
+    Label {
+        name: String,
+        span: Range<usize>,
+    },
+    Directive {
+        key: String,
+        value: i64,
+        span: Range<usize>,
+    },
     Instruction(AstInstruction),
 }
 
@@ -23,6 +34,7 @@ pub struct Directive {
 pub struct AstInstruction {
     pub mnemonic: String,
     pub operands: Vec<AstOperand>,
+    pub span: Range<usize>,
 }
 
 #[derive(Clone)]
@@ -132,8 +144,8 @@ pub enum Instruction<A: Architecture> {
         imm: A::Word,
     },
     MOV {
-        r1: u8,
-        r2: u8,
+        dst: u8,
+        src: u8,
     },
 
     /// This instruction will be resolved in the pass2 stage
@@ -175,6 +187,10 @@ pub enum Instruction<A: Architecture> {
     },
     /// This instruction will be resolved in the pass2 stage
     JNSUnresolved {
+        target: AstJumpTarget<A>,
+    },
+
+    CALLUnresolved {
         target: AstJumpTarget<A>,
     },
 
@@ -254,6 +270,12 @@ pub enum Instruction<A: Architecture> {
         reg: u8,
     },
 
+    CALL {
+        addr: A::Word,
+    },
+
+    RET,
+
     HLT,
 }
 
@@ -266,6 +288,7 @@ pub enum AstJumpTarget<A: Architecture> {
 #[derive(Clone)]
 pub enum AstOperand {
     Reg(u8),
+    SReg(SpecialRegister),
     Imm(i64),
     Label(String),
     Deref {

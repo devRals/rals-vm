@@ -1,7 +1,7 @@
 use crate::vm::VirtualMachine;
 use rals_vm_isa::{
     Decode,
-    arch::{Architecture, AsBytes},
+    arch::{Architecture, MemoryStorage},
     registers::Register,
     value::ImmediateValue,
 };
@@ -9,8 +9,8 @@ use rals_vm_isa::{
 macro_rules! execute_method {
     (alu $name: ident -> $alu_action: ident) => {
         pub fn $name(&mut self, dst: Register, lhs: Register, rhs: Register) {
-            let lhs = self.cpu.reg_file.general[lhs as usize];
-            let rhs = self.cpu.reg_file.general[rhs as usize];
+            let lhs = self.cpu.reg_file.get_reg(lhs);
+            let rhs = self.cpu.reg_file.get_reg(rhs);
 
             let result = self.cpu.alu.$alu_action(lhs, rhs);
 
@@ -21,7 +21,7 @@ macro_rules! execute_method {
 
     (alu_imm $name: ident -> $alu_action: ident) => {
         pub fn $name(&mut self, dst: Register, lhs: Register, imm: A::Word) {
-            let lhs = self.cpu.reg_file.general[lhs as usize];
+            let lhs = self.cpu.reg_file.get_reg(lhs);
             let result = self.cpu.alu.$alu_action(lhs, imm);
 
             self.cpu.reg_file.set_reg(dst, result.value);
@@ -71,13 +71,11 @@ impl<A: Architecture> VirtualMachine<A> {
     }
 
     pub fn execute_ldi(&mut self, dst: Register, src: A::Word) {
-        self.cpu.reg_file.set_reg(dst, src);
+        self.cpu.reg_file.ldi(dst, src);
     }
 
     pub fn execute_mov(&mut self, dst: Register, src: Register) {
-        self.cpu
-            .reg_file
-            .set_reg(dst, self.cpu.reg_file.general[src as usize]);
+        self.cpu.reg_file.mov(dst, src)
     }
 
     execute_method!(alu execute_alu_add -> add);
@@ -99,8 +97,8 @@ impl<A: Architecture> VirtualMachine<A> {
     execute_method!(alu_imm execute_alu_sari -> sar);
 
     pub fn execute_alu_cmp(&mut self, r1: Register, r2: Register) {
-        let a = self.cpu.reg_file.general[r1 as usize];
-        let b = self.cpu.reg_file.general[r2 as usize];
+        let a = self.cpu.reg_file.get_reg(r1);
+        let b = self.cpu.reg_file.get_reg(r2);
 
         self.cpu.flags = self.cpu.alu.sub(a, b).flags
     }
@@ -139,8 +137,8 @@ impl<A: Architecture> VirtualMachine<A> {
         target_index: Register,
         target_displacement: A::Word,
     ) {
-        let base = self.cpu.reg_file.general[target_base as usize];
-        let index = self.cpu.reg_file.general[target_index as usize];
+        let base = self.cpu.reg_file.get_reg(target_base);
+        let index = self.cpu.reg_file.get_reg(target_index);
         let displacement = target_displacement;
 
         let address = base
@@ -148,7 +146,7 @@ impl<A: Architecture> VirtualMachine<A> {
             .wrapping_add(displacement)
             .as_usize();
 
-        let bytes = &self.mem.data.as_bytes()[address..address + A::Word::BYTES];
+        let bytes = &self.mem.data.get_heap()[address..address + A::Word::BYTES];
         let target_value = A::Word::decode(bytes);
         self.cpu.reg_file.set_reg(dst, target_value);
     }
@@ -160,8 +158,8 @@ impl<A: Architecture> VirtualMachine<A> {
         dst_displacement: A::Word,
         target: Register,
     ) {
-        let base = self.cpu.reg_file.general[dst_base as usize];
-        let index = self.cpu.reg_file.general[dst_index as usize];
+        let base = self.cpu.reg_file.get_reg(dst_base);
+        let index = self.cpu.reg_file.get_reg(dst_index);
         let displacement = dst_displacement;
 
         let dst_address = base
@@ -169,15 +167,42 @@ impl<A: Architecture> VirtualMachine<A> {
             .wrapping_add(displacement)
             .as_usize();
 
-        let target_value = self.cpu.reg_file.general[target as usize];
+        let target_value = self.cpu.reg_file.get_reg(target);
         let target_value_bytes = target_value.to_bytes();
 
-        let memory = self.mem.data.as_bytes_mut();
+        let memory = self.mem.data.get_heap_mut();
         memory[dst_address..dst_address + A::Word::BYTES]
             .copy_from_slice(target_value_bytes.as_ref());
     }
 
     pub fn execute_hlt(&mut self) {
         self.cpu.reg_file.pc.hlt();
+    }
+
+    pub fn execute_push(&mut self, reg: Register) {
+        let memory = &mut self.mem.data;
+        let value = self.cpu.reg_file.get_reg(reg);
+
+        self.cpu.reg_file.sp.push(memory, value);
+    }
+
+    pub fn execute_pop(&mut self, reg: Register) {
+        let memory = &self.mem.data;
+
+        let stack_poped_value = self.cpu.reg_file.sp.pop(memory);
+        self.cpu.reg_file.set_reg(reg, stack_poped_value);
+    }
+
+    pub fn execute_call(&mut self, addr: A::Word) {
+        let next_instruction_addr = self.cpu.reg_file.pc.get_word();
+        let mem = &mut self.mem.data;
+        self.cpu.reg_file.sp.push(mem, next_instruction_addr);
+        self.cpu.reg_file.pc.jmp(addr);
+    }
+
+    pub fn execute_ret(&mut self) {
+        let mem = &mut self.mem.data;
+        let return_addr = self.cpu.reg_file.sp.pop(mem);
+        self.cpu.reg_file.pc.jmp(return_addr);
     }
 }

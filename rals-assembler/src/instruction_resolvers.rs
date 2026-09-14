@@ -4,6 +4,7 @@ use crate::{
     Assembler,
     assembler::{Pass1Error, SymbolTable},
     ast::{AstInstruction, AstJumpTarget, AstOperand::*, Instruction},
+    lexer::SpecialRegister,
 };
 
 impl<A: Architecture> Instruction<A> {
@@ -42,6 +43,7 @@ impl<A: Architecture> Instruction<A> {
             JNOUnresolved => JNO,
             JNCUnresolved => JNC,
             JNZUnresolved => JNZ,
+            CALLUnresolved => CALL,
         ]
     }
 
@@ -110,6 +112,9 @@ impl<A: Architecture> Instruction<A> {
             PUSH { .. } => 0xE0,
             POP { .. } => 0xE1,
 
+            CALL { .. } => 0xF0,
+            RET => 0xF1,
+
             JOUnresolved { .. }
             | JCUnresolved { .. }
             | JSUnresolved { .. }
@@ -118,7 +123,8 @@ impl<A: Architecture> Instruction<A> {
             | JNCUnresolved { .. }
             | JNSUnresolved { .. }
             | JNZUnresolved { .. }
-            | JMPUnresolved { .. } => 0xFE, // Unknown instruction code
+            | JMPUnresolved { .. }
+            | CALLUnresolved { .. } => 0xFE, // Unknown instruction code
 
             HLT => 0xFF,
         }
@@ -134,7 +140,7 @@ impl<A: Architecture> Encode for Instruction<A> {
         use Instruction::*;
 
         match self {
-            NOP | HLT => {}
+            NOP | HLT | RET => {}
             ADD { dst, lhs, rhs }
             | SUB { dst, lhs, rhs }
             | OR { dst, lhs, rhs }
@@ -182,7 +188,7 @@ impl<A: Architecture> Encode for Instruction<A> {
                 out[1..1 + A::Word::BYTES].copy_from_slice(amount.to_bytes().as_ref());
             }
 
-            CMP { r1, r2 } | MOV { r1, r2 } => {
+            CMP { r1, r2 } => {
                 out[1] = r1;
                 out[2] = r2;
             }
@@ -191,6 +197,11 @@ impl<A: Architecture> Encode for Instruction<A> {
                 out[1] = reg;
 
                 out[2..2 + A::Word::BYTES].copy_from_slice(imm.to_bytes().as_ref());
+            }
+
+            MOV { dst, src } => {
+                out[1] = dst;
+                out[2] = src;
             }
 
             STORE {
@@ -219,6 +230,10 @@ impl<A: Architecture> Encode for Instruction<A> {
 
             PUSH { reg } | POP { reg } | INC { reg } | DEC { reg } => out[1] = reg,
 
+            CALL { addr: dst } => {
+                out[1..1 + A::Word::BYTES].copy_from_slice(dst.to_bytes().as_ref())
+            }
+
             JMPUnresolved { .. }
             | JCUnresolved { .. }
             | JOUnresolved { .. }
@@ -227,7 +242,8 @@ impl<A: Architecture> Encode for Instruction<A> {
             | JNCUnresolved { .. }
             | JNOUnresolved { .. }
             | JNSUnresolved { .. }
-            | JNZUnresolved { .. } => {}
+            | JNZUnresolved { .. }
+            | CALLUnresolved { .. } => {}
         }
     }
 }
@@ -273,6 +289,13 @@ fn narrow_imm<A: Architecture>(imm: i64) -> Result<A::Word, Pass1Error> {
     })
 }
 
+fn special_reg(reg: SpecialRegister) -> u8 {
+    match reg {
+        SpecialRegister::StackPointer => 0x10,
+        SpecialRegister::FramePointer => 0x11,
+    }
+}
+
 impl<A: Architecture> Assembler<A> {
     make_resolver!(nop: {
         operand_count: 0,
@@ -299,8 +322,11 @@ impl<A: Architecture> Assembler<A> {
     });
     make_resolver!(mov : {
         operand_count: 2,
-        usage: "<reg>, <reg>",
-        (Some(Reg(r1)), Some(Reg(r2)), None) => Instruction::MOV { r1, r2 }
+        usage: "<reg|sreg>, <reg|sreg>",
+        (Some(Reg(dst)), Some(Reg(src)), None) => Instruction::MOV { src, dst },
+        (Some(Reg(dst)), Some(SReg(src)), None) => Instruction::MOV { src: special_reg(src), dst },
+        (Some(SReg(dst)), Some(Reg(src)), None) => Instruction::MOV { src , dst: special_reg(dst) },
+        (Some(SReg(dst)), Some(SReg(src)), None) => Instruction::MOV { src: special_reg(src), dst: special_reg(dst) },
     });
 
     make_resolver!(add : {
@@ -522,6 +548,19 @@ impl<A: Architecture> Assembler<A> {
         operand_count: 1,
         usage: "<reg>",
         (Some(Reg(reg)), None, None) => Instruction::POP { reg },
+    });
+
+    make_resolver!(call: {
+        operand_count: 1,
+        usage: "<reg>",
+        (Some(Imm(imm)), None, None) => Instruction::CALLUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
+        (Some(Label(label)), None, None) => Instruction::CALLUnresolved { target: AstJumpTarget::Label(label) },
+    });
+
+    make_resolver!(ret : {
+        operand_count: 0,
+        usage: "",
+        (None, None, None) => Instruction::RET,
     });
 
     make_resolver!(hlt : {

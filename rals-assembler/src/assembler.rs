@@ -49,7 +49,11 @@ impl<A: Architecture> Assembler<A> {
             .iter()
             .filter(|i| matches!(i, AstItem::Directive { .. }))
             .map(|d| match d {
-                AstItem::Directive { key, value } => Directive {
+                AstItem::Directive {
+                    key,
+                    value,
+                    span: _,
+                } => Directive {
                     key: key.clone(),
                     value: *value,
                 },
@@ -125,6 +129,9 @@ impl<A: Architecture> Assembler<A> {
             "push" => self.push(ins),
             "pop" => self.pop(ins),
 
+            "call" => self.call(ins),
+            "ret" => self.ret(ins),
+
             "hlt" => self.hlt(ins),
 
             o => return Err(Pass1Error::UnknownOpCode(o.to_string())),
@@ -146,7 +153,10 @@ impl<A: Architecture> Assembler<A> {
         for item in text_section.items {
             match item {
                 AstItem::Directive { .. } => {}
-                AstItem::Label(label_name) => {
+                AstItem::Label {
+                    name: label_name,
+                    span: _,
+                } => {
                     self.symbol_table.insert(label_name, pc);
                 }
                 AstItem::Instruction(ins) => {

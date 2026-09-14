@@ -4,7 +4,7 @@ use crate::{cpu::CentralProcessUnit, ram::RandomAccessMemory};
 
 use rals_vm_isa::{
     Decode,
-    arch::{Arch64, Architecture, AsBytes},
+    arch::{Arch64, Architecture, AsBytes, MemoryStorage},
     instructions::Instruction,
 };
 
@@ -30,8 +30,8 @@ impl<A: Architecture> VirtualMachine<A> {
         let bytes: &[u8] = bytes.into();
         let mem = self.mem.data.as_bytes_mut();
 
-        if bytes.len() > mem.len() {
-            panic!("bytes len passes the mem capacity")
+        if bytes.len() > A::MEMORY_SIZE {
+            panic!("rals-vm: bytes len passes the mem capacity")
         }
 
         mem.fill(0);
@@ -40,26 +40,30 @@ impl<A: Architecture> VirtualMachine<A> {
         }
     }
 
-    pub fn load_instructions<I>(&mut self, instructions: I)
-    where
-        I: IntoIterator<Item = A::Instruction>,
-    {
-        let mem = self.mem.data.as_bytes_mut();
-        for (i, ins) in instructions.into_iter().enumerate() {
-            let chunk = &mut mem[i * A::INSTRUCTION_SIZE..(i + 1) * A::INSTRUCTION_SIZE];
-            chunk.copy_from_slice(ins.as_bytes());
+    pub fn load_program<'a>(&mut self, bytecode: impl Into<&'a [u8]>) {
+        let bytecode: &[u8] = bytecode.into();
+        let program_memory = self.mem.data.get_program_mut();
+
+        if bytecode.len() > program_memory.len() {
+            panic!(
+                "rals-vm: bytes len passes the program capacity. Consider using a higher architecture"
+            )
+        }
+        program_memory.fill(0);
+        for (src, dst) in bytecode.iter().zip(program_memory) {
+            *dst = *src
         }
     }
 
     pub fn fetch(&self) -> &[u8] {
         let pc = &self.cpu.reg_file.pc;
 
-        let start = pc.get() as usize;
+        let start = pc.get();
         let end = start + A::INSTRUCTION_SIZE;
 
-        let bytes = self.mem.data.as_bytes();
+        let bytes = self.mem.data.get_program();
         bytes.get(start..end).expect(
-            "Program counter got out of memory bounds. You might forgot to use HLT instruction.",
+            "rals-vm: Segmentaion fault: Program counter got out of it's memory bounds. You might forgot to use HLT instruction.",
         )
     }
 
@@ -135,12 +139,14 @@ impl<A: Architecture> VirtualMachine<A> {
                 dst_displacement,
             } => self.execute_store(dst_base, dst_index, dst_displacement, target),
 
-            I::PUSH { .. } | I::POP { .. } => {
-                panic!("stack pointer and its instructions are implemented yet")
-            }
+            I::PUSH { reg } => self.execute_push(reg),
+            I::POP { reg } => self.execute_pop(reg),
 
-            I::UnknownInstruction => panic!(
-                "rals-vm got an unknown instruction. This might be occured due decoding or encoding might be wrong for an object"
+            I::CALL { addr } => self.execute_call(addr),
+            I::RET => self.execute_ret(),
+
+            I::UnknownInstruction(opcode) => panic!(
+                "rals-vm got an unknown instruction with opcode {opcode}. This might be occured due decoding or encoding might be wrong for an object"
             ),
             I::HLT => self.execute_hlt(),
         }
@@ -150,9 +156,9 @@ impl<A: Architecture> VirtualMachine<A> {
         let raw_instruction = self.fetch();
 
         let instruction = self.decode(raw_instruction);
-        self.execute(instruction);
 
         self.cpu.reg_file.pc.advance();
+        self.execute(instruction);
     }
 
     /// Keeps executing the loaded instructions until the system reaches an HLT instruction

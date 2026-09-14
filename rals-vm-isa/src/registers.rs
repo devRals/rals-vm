@@ -20,6 +20,9 @@ pub enum Register {
     R14,
     R15,
 
+    RSP,
+    RFP,
+
     UnknownRegister = 0xFF,
 }
 
@@ -30,22 +33,26 @@ impl Decode for Register {
             .expect("Register decode design is wrong. Update your code");
 
         match byte {
-            0 => Register::R0,
-            1 => Register::R1,
-            2 => Register::R2,
-            3 => Register::R3,
-            4 => Register::R4,
-            5 => Register::R5,
-            6 => Register::R6,
-            7 => Register::R7,
-            8 => Register::R8,
-            9 => Register::R9,
-            10 => Register::R10,
-            11 => Register::R11,
-            12 => Register::R12,
-            13 => Register::R13,
-            14 => Register::R14,
-            15 => Register::R15,
+            0x00 => Register::R0,
+            0x01 => Register::R1,
+            0x02 => Register::R2,
+            0x03 => Register::R3,
+            0x04 => Register::R4,
+            0x05 => Register::R5,
+            0x06 => Register::R6,
+            0x07 => Register::R7,
+            0x08 => Register::R8,
+            0x09 => Register::R9,
+            0x0a => Register::R10,
+            0x0b => Register::R11,
+            0x0c => Register::R12,
+            0x0d => Register::R13,
+            0x0e => Register::R14,
+            0x0f => Register::R15,
+
+            0x10 => Register::RSP,
+            0x11 => Register::RFP,
+
             _ => Register::UnknownRegister,
         }
     }

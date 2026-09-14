@@ -32,6 +32,15 @@ pub enum Token {
     #[regex(r"[rR]([0-9]|1[0-5])", |lex| lex.slice()[1..].parse().ok())]
     Register(u8),
 
+    #[regex(r"[rR](?i:(sp|fp))", |lex| {
+        match lex.slice()[1..].to_lowercase().as_str() {
+            "sp" => SpecialRegister::StackPointer,
+            "fp" => SpecialRegister::FramePointer,
+            r => panic!("unknown register name {r}")
+        }
+    })]
+    SpecialReg(SpecialRegister),
+
     #[regex(r"0[xX][0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[2..], 16).ok())] // Hexadecimal
     #[regex(r"0[oO][0-7]+", |lex| i64::from_str_radix(&lex.slice()[2..], 8).ok())] // Octal
     #[regex(r"0[bB][0-1]+", |lex| i64::from_str_radix(&lex.slice()[2..], 2).ok())] // Binary
@@ -41,6 +50,12 @@ pub enum Token {
 
     #[regex(r"[A-Za-z_][A-Za-z0-9_]*", |lex| lex.slice().to_string())]
     Ident(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialRegister {
+    StackPointer,
+    FramePointer,
 }
 
 impl fmt::Display for Token {

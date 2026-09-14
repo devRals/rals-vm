@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::lexer::{Token, LexError};
+use crate::lexer::{Token, LexError, SpecialRegister};
 
 grammar;
 
@@ -17,6 +17,7 @@ extern {
         "+" => Token::Plus,
         "-" => Token::Minus,
         "*" => Token::Asterisk,
+        "sreg" => Token::SpecialReg(<SpecialRegister>),
         "reg" => Token::Register(<u8>),
         "imm" => Token::Immediate(<i64>),
         "ident" => Token::Ident(<String>),
@@ -29,22 +30,34 @@ pub Program: AstProgram = {
 };
 
 Section: AstSection = {
-    "section" <name:"dotident"> "\n"+ <items:Item*> => AstSection { name, items }
+    <start:@L> "section" <name:"dotident"> "\n"+ <items:Item*> <end: @R>
+        => AstSection { name, items, span: start..end }
 };
 
 Item: AstItem = {
-    <name:"ident"> ":" <value:"imm"?> "\n"+ => match value {
-        Some(v) => AstItem::Directive { key: name, value: v },
-        None => AstItem::Label(name),
+    <start: @L><name:"ident"> ":" <value:"imm"?> "\n"+ <end: @R> => match value {
+        Some(v) => AstItem::Directive { 
+            key: name,
+            value: v,
+            span: start..end
+        },
+        None => AstItem::Label {
+            name, span: start..end
+        },
     },
     <i:Instruction> "\n"+ => AstItem::Instruction(i),
 };
 
 Instruction: AstInstruction = {
-    <m:"ident"> <ops:Comma<Operand>> => AstInstruction { mnemonic: m, operands: ops },
+    <start: @L> <m:"ident"> <ops:Comma<Operand>> <end: @R> => AstInstruction { 
+        mnemonic: m,
+        operands: ops,
+        span: start..end
+    },
 };
 
 Operand: AstOperand = {
+    <sr: "sreg"> => AstOperand::SReg(sr),
     <r: "reg"> => AstOperand::Reg(r),
     <i: "imm"> => AstOperand::Imm(i),
     <l: "ident"> => AstOperand::Label(l),
@@ -72,6 +85,7 @@ DerefScale: i64 = {
 
 DerefDisplacement: i64 = {
     "+" <i: "imm"> => i,
+    "-" <i: "imm"> => -i,
 };
 
 // Standard lalrpop idiom for comma-separated lists — no left-recursion,

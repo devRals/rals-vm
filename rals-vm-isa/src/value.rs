@@ -32,6 +32,8 @@ pub trait ImmediateValue:
     fn overflowing_sub(self, rhs: Self) -> (Self, bool);
     fn wrapping_add(self, rhs: Self) -> Self;
     fn wrapping_sub(self, rhs: Self) -> Self;
+    fn checked_add(self, rhs: Self) -> Option<Self>;
+    fn checked_sub(self, rhs: Self) -> Option<Self>;
 
     fn to_bytes(&self) -> Self::Bytes;
     /// Tries to cast the given value to [`ImmediateValue`]. Returns [`None`] if value is way of
@@ -61,12 +63,11 @@ macro_rules! impl_integer_value {
                 fn overflowing_add(self, rhs: Self) -> (Self, bool) { self.overflowing_add(rhs) }
                 fn overflowing_sub(self, rhs: Self) -> (Self, bool) { self.overflowing_sub(rhs) }
 
-                fn wrapping_add(self, rhs: Self) -> Self {
-                    self.wrapping_add(rhs)
-                }
-                fn wrapping_sub(self, rhs: Self) -> Self {
-                    self.wrapping_sub(rhs)
-                }
+                fn wrapping_add(self, rhs: Self) -> Self { self.wrapping_add(rhs) }
+                fn wrapping_sub(self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
+
+                fn checked_add(self, rhs: Self) -> Option<Self> { self.checked_add(rhs) }
+                fn checked_sub(self, rhs: Self) -> Option<Self> { self.checked_sub(rhs) }
 
                 fn to_bytes(&self) -> Self::Bytes {
                     self.to_le_bytes()

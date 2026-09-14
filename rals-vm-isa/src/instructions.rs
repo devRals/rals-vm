@@ -189,9 +189,14 @@ pub enum Instruction<A: Architecture> {
     POP {
         reg: Register,
     } = 0xE1,
+
+    CALL {
+        addr: A::Word,
+    } = 0xF0,
+    RET = 0xF1,
     /// Since a real computer can't understand what a Result is we can't directly use it.
     /// Instead we can define an instruction that should not be used in production.
-    UnknownInstruction = 0xFE,
+    UnknownInstruction(u8) = 0xFE,
     HLT = 0xFF,
 }
 
@@ -207,7 +212,7 @@ impl<A: Architecture> Instruction<A> {
             0x6 => I::SHL { dst, lhs, rhs },
             0x7 => I::SHR { dst, lhs, rhs },
             0x8 => I::SAR { dst, lhs, rhs },
-            _ => I::UnknownInstruction,
+            opcode => I::UnknownInstruction(opcode),
         }
     }
 
@@ -222,7 +227,7 @@ impl<A: Architecture> Instruction<A> {
             0xe => I::SHLI { dst, lhs, imm },
             0xf => I::SHRI { dst, lhs, imm },
             0x10 => I::SARI { dst, lhs, imm },
-            _ => I::UnknownInstruction,
+            opcode => I::UnknownInstruction(opcode),
         }
     }
 
@@ -240,7 +245,7 @@ impl<A: Architecture> Instruction<A> {
             0x79 => I::JNC { addr },
             0x7a => I::JNS { addr },
             0x7b => I::JNZ { addr },
-            _ => I::UnknownInstruction,
+            opcode => I::UnknownInstruction(opcode),
         }
     }
     fn match_from_opcode_jmps_relative(opcode: u8, amount: A::Word) -> Instruction<A> {
@@ -257,7 +262,7 @@ impl<A: Architecture> Instruction<A> {
             0x81 => I::JRNC { amount },
             0x82 => I::JRNS { amount },
             0x83 => I::JRNZ { amount },
-            _ => I::UnknownInstruction,
+            opcode => I::UnknownInstruction(opcode),
         }
     }
 }
@@ -388,9 +393,16 @@ impl<A: Architecture> Decode for Instruction<A> {
                 }
             }
 
+            0xf0 => {
+                let addr = A::Word::decode(&ins[1..]);
+                Instruction::CALL { addr }
+            }
+
+            0xf1 => Instruction::RET,
+
             // HLT
             0xFF => Instruction::HLT,
-            _ => Instruction::UnknownInstruction,
+            opcode => Instruction::UnknownInstruction(opcode),
         }
     }
 }

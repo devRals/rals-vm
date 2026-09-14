@@ -11,15 +11,30 @@ pub trait Architecture: Sized {
     type Instruction: InstructionStorage;
     /// Memory type determines what type of memory should this architecture use.
     /// Memory is basically the where program is loaded an can manage it.
-    type Memory: MemoryStorage;
+    type Memory: MemoryStorage<Self>;
 
-    const INSTRUCTION_SIZE: usize;
+    /// How many instructions in bytes a program can hold in itself
+    const PROGRAM_SIZE: usize;
+
+    /// Tells how many bytes the stack can hold
+    const STACK_SIZE: usize;
+
+    /// Tells how big the heap is in bytes.
+    const HEAP_SIZE: usize;
+
     /// MEMORY_SIZE basically determines how much the loaded program can be. Know that this size is
     /// limitted what [`Architecture::Word`] you choose because of jump ranges. For example you decided
     /// using u8 for [`Architecture::Word`] then your jump reach can be up to 255 which is [`u8::MAX`].
     /// Therefor if you exceed this limit your basically would try to acccess to memory address that
     /// doesn't exist
-    const MEMORY_SIZE: usize;
+    ///
+    /// Auto defined by the sum of other constants beside [`Self::INSTRUCTION_SIZE`]
+    const MEMORY_SIZE: usize = Self::PROGRAM_SIZE + Self::HEAP_SIZE + Self::STACK_SIZE;
+
+    /// Instruction size defines how many bytes can take place in a instruction buffer while
+    /// decoding and encoding. It's auto defined as it can take an ImmediateValue's byte count and 4
+    /// extra bytes for opcode and operands
+    const INSTRUCTION_SIZE: usize = Self::Word::BYTES + 4;
 
     fn new_empty_memory() -> Self::Memory;
 }
@@ -49,37 +64,79 @@ impl<const N: usize> AsBytes for [u8; N] {
     }
 }
 
-pub trait MemoryStorage: AsBytes {}
-pub trait InstructionStorage: AsBytes {}
+/// Used for dividing the memory into regions.
+/// Usually this is automatically done by the OS (operating system) you're using
+/// However this isn't the case in our option
+pub trait MemoryStorage<A: Architecture>: AsBytes {
+    fn get_program(&self) -> &[u8];
+    fn get_program_mut(&mut self) -> &mut [u8];
 
-impl<const N: usize> MemoryStorage for [u8; N] {}
-impl MemoryStorage for Box<[u8]> {}
+    fn get_stack(&self) -> &[u8];
+    fn get_stack_mut(&mut self) -> &mut [u8];
+
+    fn get_heap(&self) -> &[u8];
+    fn get_heap_mut(&mut self) -> &mut [u8];
+}
+
+impl<A: Architecture> MemoryStorage<A> for Box<[u8]> {
+    fn get_program(&self) -> &[u8] {
+        let start = 0;
+        let end = A::PROGRAM_SIZE;
+        &self[start..end]
+    }
+    fn get_program_mut(&mut self) -> &mut [u8] {
+        let start = 0;
+        let end = A::PROGRAM_SIZE;
+        &mut self[start..end]
+    }
+
+    fn get_heap(&self) -> &[u8] {
+        let start = A::PROGRAM_SIZE;
+        let end = start + A::HEAP_SIZE;
+        &self[start..end]
+    }
+    fn get_heap_mut(&mut self) -> &mut [u8] {
+        let start = A::PROGRAM_SIZE;
+        let end = start + A::HEAP_SIZE;
+        &mut self[start..end]
+    }
+
+    fn get_stack(&self) -> &[u8] {
+        let start = A::PROGRAM_SIZE + A::HEAP_SIZE;
+        let end = start + A::STACK_SIZE;
+
+        &self[start..end]
+    }
+    fn get_stack_mut(&mut self) -> &mut [u8] {
+        let start = A::PROGRAM_SIZE + A::HEAP_SIZE;
+        let end = start + A::STACK_SIZE;
+
+        &mut self[start..end]
+    }
+}
+
+pub trait InstructionStorage: AsBytes {}
 impl<const N: usize> InstructionStorage for [u8; N] {}
 
-/// Creates a new struct that implements the [`Architecture`] trait
-/// it implements all constants and functions automatically based on what Word you use
-///
-/// These constants are auto defined by the macro
-/// MEMORY_SIZE: Word::MAX [`Architecture::MEMORY_SIZE`]
-/// INSTRUCTION_SIZE: Word::BYTES + 4 ->
-///     [opcode:1, reg:1, deref: [base: 1, index: 1, displacement: imm]]  
-///     whats up there is LOAD ins example which takes the largest space in a instruction buffer
-/// Instruction: [u8; Self::INSTRUCTION_SIZE] [`Architecture::MEMORY_SIZE`]
 #[macro_export]
 macro_rules! create_arch {
     ( $arch_name: ident {
         Word: $word: ty,
-        MemorySize: $mem_size: expr
+        ProgramSize: $program_size: expr,
+        HeapSize: $heap_size: expr,
+        StackSize: $stack_size: expr $(,)?
     }) => {
         #[derive(Default, Clone, Copy)]
         pub struct $arch_name;
         impl Architecture for $arch_name {
             type Word = $word;
             type Instruction = [u8; Self::INSTRUCTION_SIZE];
+            /// Regions: [program, heap, call_stack, stack]
             type Memory = Box<[u8]>;
 
-            const INSTRUCTION_SIZE: usize = Self::Word::BYTES + 4;
-            const MEMORY_SIZE: usize = $mem_size;
+            const PROGRAM_SIZE: usize = $program_size * Self::INSTRUCTION_SIZE;
+            const HEAP_SIZE: usize = $heap_size;
+            const STACK_SIZE: usize = $stack_size * Self::Word::BYTES;
 
             fn new_empty_memory() -> Self::Memory {
                 vec![0u8; Self::MEMORY_SIZE].into_boxed_slice()
@@ -90,17 +147,25 @@ macro_rules! create_arch {
 
 create_arch!(Arch8 {
     Word: u8,
-    MemorySize: 256 // full 8-bit range, cheap
+    ProgramSize: 128,
+    HeapSize: 256,
+    StackSize: 32,
 });
 create_arch!(Arch16 {
     Word: u16,
-    MemorySize: 64 * 1024 // full 16-bit range
+    ProgramSize: 256,
+    HeapSize: 256,
+    StackSize: 64,
 });
 create_arch!(Arch32 {
     Word: u32,
-    MemorySize: 16 * 1024 * 1024 // 16MB — plenty for a hobby VM
+    ProgramSize: 256,
+    HeapSize: 512,
+    StackSize: 128,
 });
 create_arch!(Arch64 {
     Word: u64,
-    MemorySize: 32 * 1024 * 1024 // 32MB — same idea
+    ProgramSize: 512,
+    HeapSize: 1024,
+    StackSize: 256,
 });
