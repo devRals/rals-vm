@@ -35,13 +35,13 @@ fn main() -> anyhow::Result<()> {
         Arch::Arch32 => run::<Arch32>(&bytecode),
         Arch::Arch64 => run::<Arch64>(&bytecode),
     }
-    Ok(())
 }
 
 fn resolve_header(_bytecode: &mut Vec<u8>) {}
 
-fn run<A: Architecture>(bytecode: &[u8]) {
+fn run<A: Architecture>(bytecode: &[u8]) -> anyhow::Result<()> {
     let mut vm = VirtualMachine::<A>::new();
     vm.load_program(bytecode);
     vm.run();
+    Ok(())
 }

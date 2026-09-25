@@ -13,12 +13,12 @@ add:
     ldi     r3, 0xff
 
     mov     rfp, rsp
-    push    r1
-    push    r3
-    ; Do stuf with stack
-    ; ...
-    ; ...
-    mov     rsp, rfp ; Dealloc stuff from stack
+    mov     r15, rsp
+    push    r15
+    ldi     r4, 0d4
+    push    r4
+
+    mov     rsp, rfp
     ret
     
 _end:

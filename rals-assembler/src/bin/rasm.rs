@@ -11,7 +11,7 @@ use rals_assembler::{
 };
 use rals_vm_isa::arch::{Arch8, Arch16, Arch32, Arch64, Architecture};
 
-const RALS_VM_EXTENTION: &str = "rvm";
+const RALS_VM_BYTECODE_EXTENTION: &str = "rbc";
 const RALS_VM_ASSEMBLY_EXTENTION: &str = "rasm";
 
 type DefaultArch = Arch32;
@@ -69,10 +69,9 @@ fn run<A: Architecture>(program: AstProgram, mut path_to_source: PathBuf) -> any
     let resolved = assembler.pass1(program)?;
     let bytecode = assembler.pass2(resolved);
 
-    path_to_source.set_extension(RALS_VM_EXTENTION);
+    path_to_source.set_extension(RALS_VM_BYTECODE_EXTENTION);
     let mut bytecode_file = File::create(path_to_source)?;
     bytecode_file.write(&bytecode)?;
-    println!("bytecode: {bytecode:?}");
 
     Ok(())
 }

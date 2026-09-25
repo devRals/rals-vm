@@ -247,7 +247,7 @@ impl<A: Architecture> Encode for Instruction<A> {
         }
     }
 }
-macro_rules! make_resolver {
+macro_rules! make_parser {
     ($name: ident: {
         operand_count: $op_count: expr,
         usage: $usage: expr,
@@ -297,30 +297,30 @@ fn special_reg(reg: SpecialRegister) -> u8 {
 }
 
 impl<A: Architecture> Assembler<A> {
-    make_resolver!(nop: {
+    make_parser!(nop: {
         operand_count: 0,
         usage: "",
         (None, None, None) => Instruction::NOP
     });
 
-    make_resolver!(inc : {
+    make_parser!(inc : {
         operand_count: 1,
         usage: "<reg>",
         (Some(Reg(reg)), None, None) => Instruction::INC {reg},
     });
-    make_resolver!(dec : {
+    make_parser!(dec : {
         operand_count: 1,
         usage: "<reg>",
         (Some(Reg(reg)), None, None) => Instruction::DEC {reg},
     });
 
-    make_resolver!(ldi : {
+    make_parser!(ldi : {
         operand_count: 2,
         usage: "<reg>, <imm>",
         (Some(Reg(reg)), Some(Imm(imm)), None)
             => Instruction::LDI { reg, imm: narrow_imm::<A>(imm)? }
     });
-    make_resolver!(mov : {
+    make_parser!(mov : {
         operand_count: 2,
         usage: "<reg|sreg>, <reg|sreg>",
         (Some(Reg(dst)), Some(Reg(src)), None) => Instruction::MOV { src, dst },
@@ -329,241 +329,241 @@ impl<A: Architecture> Assembler<A> {
         (Some(SReg(dst)), Some(SReg(src)), None) => Instruction::MOV { src: special_reg(src), dst: special_reg(dst) },
     });
 
-    make_resolver!(add : {
+    make_parser!(add : {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::ADD {dst, lhs, rhs},
     });
-    make_resolver!(sub : {
+    make_parser!(sub : {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::SUB {dst, lhs, rhs},
     });
 
-    make_resolver!(addi : {
+    make_parser!(addi : {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::ADDI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
-    make_resolver!(subi : {
+    make_parser!(subi : {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::SUBI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
 
-    make_resolver!(shl: {
+    make_parser!(shl: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::SHL {dst, lhs, rhs},
     });
-    make_resolver!(shr: {
+    make_parser!(shr: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::SHR {dst, lhs, rhs},
     });
-    make_resolver!(sar: {
+    make_parser!(sar: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::SAR {dst, lhs, rhs},
     });
 
-    make_resolver!(shli: {
+    make_parser!(shli: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::SHLI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
-    make_resolver!(shri: {
+    make_parser!(shri: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::SHRI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
-    make_resolver!(sari: {
+    make_parser!(sari: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::SARI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
 
-    make_resolver!(or: {
+    make_parser!(or: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::OR {dst, lhs, rhs},
     });
-    make_resolver!(xor: {
+    make_parser!(xor: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::XOR {dst, lhs, rhs},
     });
-    make_resolver!(and: {
+    make_parser!(and: {
         operand_count: 3,
         usage: "<reg>, <reg>, <reg>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Reg(rhs))) => Instruction::AND {dst, lhs, rhs},
     });
 
-    make_resolver!(ori: {
+    make_parser!(ori: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::ORI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
-    make_resolver!(xori: {
+    make_parser!(xori: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::XORI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
-    make_resolver!(andi: {
+    make_parser!(andi: {
         operand_count: 3,
         usage: "<reg>, <reg>, <imm>",
         (Some(Reg(dst)), Some(Reg(lhs)), Some(Imm(imm))) => Instruction::ANDI {dst, lhs, imm: narrow_imm::<A>(imm)?},
     });
 
-    make_resolver!(cmp: {
+    make_parser!(cmp: {
         operand_count: 2,
         usage: "<reg>, <reg>",
         (Some(Reg(r1)), Some(Reg(r2)), None) => Instruction::CMP { r1, r2 }
     });
 
-    make_resolver!(load: {
+    make_parser!(load: {
         operand_count: 2,
         usage: "<reg>, [<reg> + <reg?> + <imm?>]",
         (Some(Reg(dst)), Some(Deref { base, index, displacement }), None)
             => Instruction::LOAD { dst, target_base: base, target_index: index, target_displacement:  narrow_imm::<A>(displacement)? }
     });
 
-    make_resolver!(str: {
+    make_parser!(str: {
         operand_count: 2,
         usage: "<reg>, [<reg> + <reg?> + <imm?>]",
         (Some(Deref { base: dst_base, index: dst_index, displacement }), Some(Reg(target)), None)
             => Instruction::STORE { dst_base, dst_index, dst_displacement: narrow_imm::<A>(displacement)?, target }
     });
 
-    make_resolver!(jmp : {
+    make_parser!(jmp : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JMPUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JMPUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jmr: {
+    make_parser!(jmr: {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JMR { amount: narrow_imm::<A>(amount)? },
     });
 
-    make_resolver!(jo : {
+    make_parser!(jo : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JOUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JOUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jc : {
+    make_parser!(jc : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JCUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JCUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jz : {
+    make_parser!(jz : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JZUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JZUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(js : {
+    make_parser!(js : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JSUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JSUnresolved { target: AstJumpTarget::Label(label) },
     });
 
-    make_resolver!(jno : {
+    make_parser!(jno : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JNOUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JNOUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jnc : {
+    make_parser!(jnc : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JNCUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JNCUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jnz : {
+    make_parser!(jnz : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JNZUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JNZUnresolved { target: AstJumpTarget::Label(label) },
     });
-    make_resolver!(jns : {
+    make_parser!(jns : {
         operand_count: 1,
         usage: "(<imm>|<label>)",
         (Some(Imm(imm)), None, None) => Instruction::JNSUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::JNSUnresolved { target: AstJumpTarget::Label(label) },
     });
 
-    make_resolver!(jro : {
+    make_parser!(jro : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRO { amount: narrow_imm::<A>(amount)? },
     });
-    make_resolver!(jrc : {
+    make_parser!(jrc : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRC { amount : narrow_imm::<A>(amount)?},
     });
-    make_resolver!(jrz : {
+    make_parser!(jrz : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRZ { amount: narrow_imm::<A>(amount)? },
     });
-    make_resolver!(jrs : {
+    make_parser!(jrs : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRS { amount : narrow_imm::<A>(amount)?},
     });
 
-    make_resolver!(jrno : {
+    make_parser!(jrno : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRNO { amount: narrow_imm::<A>(amount)? },
     });
-    make_resolver!(jrnc : {
+    make_parser!(jrnc : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRNC { amount : narrow_imm::<A>(amount)?},
     });
-    make_resolver!(jrnz : {
+    make_parser!(jrnz : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRNZ { amount : narrow_imm::<A>(amount)?},
     });
-    make_resolver!(jrns : {
+    make_parser!(jrns : {
         operand_count: 1,
         usage: "<signed_imm>",
         (Some(Imm(amount)), None, None) => Instruction::JRNS { amount : narrow_imm::<A>(amount)?},
     });
 
-    make_resolver!(push: {
+    make_parser!(push: {
         operand_count: 1,
         usage: "<reg>",
         (Some(Reg(reg)), None, None) => Instruction::PUSH { reg },
     });
-    make_resolver!(pop: {
+    make_parser!(pop: {
         operand_count: 1,
         usage: "<reg>",
         (Some(Reg(reg)), None, None) => Instruction::POP { reg },
     });
 
-    make_resolver!(call: {
+    make_parser!(call: {
         operand_count: 1,
         usage: "<reg>",
         (Some(Imm(imm)), None, None) => Instruction::CALLUnresolved { target: AstJumpTarget::Addr(narrow_imm::<A>(imm)?) },
         (Some(Label(label)), None, None) => Instruction::CALLUnresolved { target: AstJumpTarget::Label(label) },
     });
 
-    make_resolver!(ret : {
+    make_parser!(ret : {
         operand_count: 0,
         usage: "",
         (None, None, None) => Instruction::RET,
     });
 
-    make_resolver!(hlt : {
+    make_parser!(hlt : {
         operand_count: 0,
         usage: "",
         (None, None, None) => Instruction::HLT,
